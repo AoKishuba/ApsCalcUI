@@ -5,49 +5,68 @@ using PenCalc;
 
 namespace ApsCalcUI
 {
-    public class Shell(
-        int barrelCount,
-        float gauge,
-        float gaugeCoefficient,
-        bool isBelt,
-        Module headModule,
-        Module baseModule,
-        int regularClipsPerLoader,
-        int regularInputsPerLoader,
-        int beltfedClipsPerLoader,
-        int beltfedInputsPerLoader,
-        bool usesAmmoEjector,
-        float gpCasingCount,
-        float rgCasingCount,
-        float rateOfFireRpm,
-        bool gunUsesRecoilAbsorbers,
-        bool isDif
-            )
+    public class Shell
     {
+        public Shell(
+            int barrelCount,
+            float gauge,
+            float gaugeCoefficient,
+            bool isBelt,
+            Module headModule,
+            Module baseModule,
+            int regularClipsPerLoader,
+            int regularInputsPerLoader,
+            int beltfedClipsPerLoader,
+            int beltfedInputsPerLoader,
+            bool usesAmmoEjector,
+            float gpCasingCount,
+            float rgCasingCount,
+            float rateOfFireRpm,
+            bool gunUsesRecoilAbsorbers,
+            bool isDif
+            )
+        {
+            BarrelCount = barrelCount;
+            Gauge = gauge;
+            GaugeCoefficient = gaugeCoefficient;
+            IsBelt = isBelt;
+            HeadModule = headModule;
+            BaseModule = baseModule;
+            RegularClipsPerLoader = regularClipsPerLoader;
+            RegularInputsPerLoader = regularInputsPerLoader;
+            BeltfedClipsPerLoader = beltfedClipsPerLoader;
+            BeltfedInputsPerLoader = beltfedInputsPerLoader;
+            UsesAmmoEjector = usesAmmoEjector;
+            GPCasingCount = gpCasingCount;
+            RGCasingCount = rgCasingCount;
+            RateOfFireRpm = rateOfFireRpm;
+            GunUsesRecoilAbsorbers = gunUsesRecoilAbsorbers;
+            IsDif = isDif;
+        }
         private const float ApsModifier = 23; // Used as global multiplier in damage calculations
-        public float Gauge { get; set; } = gauge;
-        public float GaugeCoefficient { get; set; } = gaugeCoefficient;
+        public float Gauge { get; set; }
+        public float GaugeCoefficient { get; set; }
 
-        public bool IsBelt = isBelt;
+        public bool IsBelt;
 
         // Keep counts of body modules.
-        public float[] BodyModuleCounts { get; set; } = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        public float[] BodyModuleCounts { get; set; } = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
         public float ModuleCountTotal { get; set; }
 
 
-        public Module BaseModule { get; } = baseModule;
-        public Module HeadModule { get; } = headModule; // Shell must always contain a head, even if shell is only 1 module
+        public Module BaseModule { get; }
+        public Module HeadModule { get; } // Shell must always contain a head, even if shell is only 1 module
 
         // Clip and input counts
-        public int RegularClipsPerLoader { get; set; } = regularClipsPerLoader;
-        public int RegularInputsPerLoader { get; set; } = regularInputsPerLoader;
-        public int BeltfedClipsPerLoader { get; set; } = beltfedClipsPerLoader;
-        public int BeltfedInputsPerLoader { get; set; } = beltfedInputsPerLoader;
-        public bool UsesAmmoEjector { get; set; } = usesAmmoEjector;
+        public int RegularClipsPerLoader { get; set; }
+        public int RegularInputsPerLoader { get; set; }
+        public int BeltfedClipsPerLoader { get; set; }
+        public int BeltfedInputsPerLoader { get; set; }
+        public bool UsesAmmoEjector { get; set; }
 
         // Gunpowder and Railgun casing counts
-        public float GPCasingCount { get; set; } = gpCasingCount;
-        public float RGCasingCount { get; set; } = rgCasingCount;
+        public float GPCasingCount { get; set; }
+        public float RGCasingCount { get; set; }
 
 
         // Lengths
@@ -69,7 +88,7 @@ namespace ApsCalcUI
         public float OverallArmorPierceModifier { get; set; }
         public float OverallChemModifier { get; set; }
         public float OverallInaccuracyModifier { get; set; }
-        public float RateOfFireRpm { get; set; } = rateOfFireRpm;
+        public float RateOfFireRpm { get; set; }
 
 
         // Power
@@ -77,15 +96,15 @@ namespace ApsCalcUI
         public float MaxDraw { get; set; }
         public float RailDraw { get; set; }
         public float TotalRecoil { get; set; }
-        public bool GunUsesRecoilAbsorbers { get; set; } = gunUsesRecoilAbsorbers;
+        public bool GunUsesRecoilAbsorbers { get; set; }
         public float Velocity { get; set; }
 
         // Reload
-        public bool IsDif { get; set; } = isDif;
+        public bool IsDif { get; set; }
         public float ShellReloadTime { get; set; }
         public float ClusterReloadTime { get; set; }
         public float Uptime { get; set; }
-        public int BarrelCount { get; set; } = barrelCount;
+        public int BarrelCount { get; set; }
         public float CooldownTime { get; set; }
 
         // Effective range

@@ -6,10 +6,16 @@ using System.Threading.Tasks;
 
 namespace ApsCalcUI
 {
-    class HeadModuleItem(int index, string name)
+    class HeadModuleItem
     {
-        public int Index { get; } = index;
-        public string Name { get; } = name;
+        public int Index { get; }
+        public string Name { get; }
+
+        public HeadModuleItem(int index, string name)
+        {
+            Index = index;
+            Name = name;
+        }
 
 
         /// <summary>

@@ -6,9 +6,15 @@ using System.Threading.Tasks;
 
 namespace ApsCalcUI
 {
-    class BarrelLengthLimitTypeItem(BarrelLengthLimit id, string text)
+    class BarrelLengthLimitTypeItem
     {
-        public BarrelLengthLimit ID { get; } = id;
-        public string Text { get; } = text;
+        public BarrelLengthLimit ID { get; }
+        public string Text { get; }
+
+        public BarrelLengthLimitTypeItem(BarrelLengthLimit id, string text)
+        {
+            ID = id;
+            Text = text;
+        }
     }
 }
