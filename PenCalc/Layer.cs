@@ -133,7 +133,7 @@ namespace PenCalc
 
         // List all supported layers
         public static Layer[] AllLayers { get; } =
-        [
+        {
             Air,
             AlloyBeam,
             AlloyBeamSlope,
@@ -215,6 +215,6 @@ namespace PenCalc
             Wood3mWedgeShallow,
             Wood4mWedgeSteep,
             Wood4mWedgeShallow,
-        ];
+        };
     }
 }
