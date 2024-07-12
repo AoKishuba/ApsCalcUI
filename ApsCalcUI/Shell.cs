@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Windows.Forms;
 
 namespace ApsCalcUI
 {
@@ -15,7 +16,6 @@ namespace ApsCalcUI
         int beltfedClipsPerLoader,
         int beltfedInputsPerLoader,
         bool usesAmmoEjector,
-        float gpCasingCount,
         float rgCasingCount,
         float rateOfFireRpm,
         bool gunUsesRecoilAbsorbers,
@@ -44,7 +44,7 @@ namespace ApsCalcUI
         public bool UsesAmmoEjector { get; set; } = usesAmmoEjector;
 
         // Gunpowder and Railgun casing counts
-        public float GPCasingCount { get; set; } = gpCasingCount;
+        public float GPCasingCount { get; set; }
         public float RGCasingCount { get; set; } = rgCasingCount;
 
 
@@ -186,6 +186,23 @@ namespace ApsCalcUI
 
         // Cost per Volume
         public float CostPerVolume { get; set; }
+
+        // Test parameters
+        public float TargetAC { get; set; }
+        public float ImpactAngleFromPerpendicularDegrees { get; set; }
+        public float TestIntervalSeconds { get; set; }
+        public float StoragePerVolume { get; set; }
+        public float StoragePerCost { get; set; }
+        public float EnginePpm { get; set; }
+        public float EnginePpv { get; set; }
+        public float EnginePpc { get; set; }
+        public bool EngineUsesFuel { get; set; }
+        public Scheme TargetArmorScheme { get; set; }
+        public float MinVelocityInput { get; set; }
+        public float MinRangeInput { get; set; }
+        public float MaxBarrelLengthInM { get; set; }
+        public float DesiredInaccuracy { get; set; }
+        public float FragAngleMultiplier { get; set; }
 
 
         /// <summary>
@@ -421,31 +438,55 @@ namespace ApsCalcUI
             }
         }
 
+        /// <summary>
+        /// Calculates max allowed total recoil for given inaccuracy (only affects guns without recoil absorbers)
+        /// </summary>
+        float CalculateMaxRecoilForInaccuracy()
+        {
+            return (DesiredInaccuracy
+                * MathF.Pow(MaxBarrelLengthInM / MathF.Pow(ProjectileLength / 1000f, 0.75f), 0.4f)
+                / 0.3f
+                / OverallInaccuracyModifier
+                / (1 + (BarrelCount - 1) * 0.2f)
+                - 1)
+                * 12500f
+                * GaugeMultiplier
+                / 0.6f;
+        }
+
+        /// <summary>
+        /// Calculates max allowed gunpowder for given inaccuracy (only affects guns without recoil absorbers)
+        /// </summary>
+        public float CalculateMaxGPForInaccuracy()
+        {
+            float maxGPRecoil = CalculateMaxRecoilForInaccuracy() - RailDraw;
+            float maxGPCasings = maxGPRecoil / GaugeMultiplier / 2500f;
+
+            return maxGPCasings;
+        }
+
 
         /// <summary>
         /// Calculates max allowed rail draw for given inaccuracy (only affects guns without recoil absorbers)
         /// </summary>
-        public float CalculateMaxDrawForInaccuracy(float maxBarrelLengthInM, float desiredInaccuracy)
+        public float CalculateMaxDrawForInaccuracy()
         {
-            float maxDraw = 
-                (MathF.Pow(
-                    MathF.Pow(ProjectileLength / 1000f, 3f / 4f) / maxBarrelLengthInM * 4f, 1f / 2.5f)
-                / 0.3f * desiredInaccuracy / OverallInaccuracyModifier - 1f)
-                / 0.6f * 12500f * GaugeMultiplier - GPRecoil;
+            CalculateRecoil();
+            float maxDraw = CalculateMaxRecoilForInaccuracy() - GPRecoil;
 
             return maxDraw;
         }
 
 
         /// <summary>
-        /// Calculate max body length for 0.3° inaccuracy
+        /// Calculate max body length for desired inaccuracy
         /// </summary>
-        public float CalculateMaxProjectileLengthForInaccuracy(float maxBarrelLengthInM, float desiredInaccuracy)
+        public float CalculateMaxProjectileLengthForInaccuracy()
         {
             CalculateInaccuracyModifier();
             float maxProjectileLength =
-                MathF.Pow(maxBarrelLengthInM / 4f / MathF.Pow(0.3f / desiredInaccuracy * OverallInaccuracyModifier, 2.5f), 4f / 3f);
-
+                MathF.Pow(MaxBarrelLengthInM / 4f / MathF.Pow(0.3f / DesiredInaccuracy * OverallInaccuracyModifier, 2.5f), 4f / 3f);
+            need to add barrel stuff to these
             return maxProjectileLength * 1000f;
         }
 
@@ -453,13 +494,13 @@ namespace ApsCalcUI
         /// <summary>
         /// Calculate min barrel length for inaccuracy and full propellant burn
         /// </summary>
-        public void CalculateRequiredBarrelLengths(float desiredInaccuracy)
+        public void CalculateRequiredBarrelLengths()
         {
             CalculateInaccuracyModifier();
             BarrelLengthForInaccuracy =
                 4
                 * MathF.Pow(ProjectileLength / 1000f, 0.75f)
-                * MathF.Pow(0.3f / desiredInaccuracy * OverallInaccuracyModifier, 2.5f);
+                * MathF.Pow(0.3f / DesiredInaccuracy * OverallInaccuracyModifier, 2.5f);
 
             BarrelLengthForPropellant = 2.2f * GPCasingCount * MathF.Pow(Gauge / 1000f, 0.55f);
         }
@@ -496,7 +537,7 @@ namespace ApsCalcUI
         /// <summary>
         /// Calculates minimum rail draw needed to achieve given velocity and effective range
         /// </summary>
-        public float CalculateMinimumDrawForVelocityandRange(float minVelocityInput, float minRangeInput)
+        public float CalculateMinimumDrawForVelocityandRange()
         {
             CalculateRecoil();
             // Calculate effective time
@@ -517,7 +558,7 @@ namespace ApsCalcUI
             float effectiveTime = 10f * OverallVelocityModifier * (ProjectileLength / 1000f) * (1f + gravityCompensatorCount);
 
             // Determine whether range or velocity is limiting factor
-            float minVelocity = MathF.Max(minVelocityInput, minRangeInput / effectiveTime);
+            float minVelocity = MathF.Max(MinVelocityInput, MinRangeInput / effectiveTime);
 
             // Calculate draw required for either range or velocity
             float minDrawVelocity = MathF.Pow(minVelocity / OverallVelocityModifier, 2)
@@ -534,7 +575,7 @@ namespace ApsCalcUI
         /// <summary>
         /// Calculates reload time and uptime
         /// </summary>
-        public void CalculateReloadTime(float testIntervalSeconds)
+        public void CalculateReloadTime()
         {
             ShellReloadTime = MathF.Pow(Gauge / 500f, 1.35f)
                 * (2f + EffectiveProjectileModuleCount + 0.25f * (RGCasingCount + GPCasingCount))
@@ -550,7 +591,7 @@ namespace ApsCalcUI
                 float firingCycleLength = (shellCapacity - 1f) * ClusterReloadTime;
                 float loadingCycleLength = (shellCapacity - BeltfedInputsPerLoader) * ClusterReloadTime / BeltfedInputsPerLoader;
                 float fullCycleLength = firingCycleLength + loadingCycleLength;
-                Uptime = MathF.Min(firingCycleLength / MathF.Min(fullCycleLength, testIntervalSeconds), 1f);
+                Uptime = MathF.Min(firingCycleLength / MathF.Min(fullCycleLength, TestIntervalSeconds), 1f);
             }
             else if (IsDif)
             {
@@ -569,17 +610,17 @@ namespace ApsCalcUI
                     * (1f + RegularClipsPerLoader)
                     / (1f + RegularClipsPerLoader - RegularInputsPerLoader);
 
-                if (timeToEmptySeconds >= testIntervalSeconds)
+                if (timeToEmptySeconds >= TestIntervalSeconds)
                 {
                     Uptime = 1f;
                 }
                 else
                 {
                     float reloadTimeWhenEmptySeconds = ClusterReloadTime * (1f + RegularClipsPerLoader) / RegularInputsPerLoader;
-                    float reducedRofDurationSeconds = MathF.Max(0f, testIntervalSeconds - timeToEmptySeconds);
+                    float reducedRofDurationSeconds = MathF.Max(0f, TestIntervalSeconds - timeToEmptySeconds);
                     Uptime = 
                         (timeToEmptySeconds + ClusterReloadTime / reloadTimeWhenEmptySeconds * reducedRofDurationSeconds)
-                        / testIntervalSeconds;
+                        / TestIntervalSeconds;
                 }
             }
         }
@@ -630,7 +671,7 @@ namespace ApsCalcUI
         /// </summary>
         /// <param name="dt">Damage type to test</param>
         /// <param name="fragAngleMultiplier">(2 + sqrt(angle °)) / 16</param>
-        public void CalculateDamageByType(DamageType dt, float fragAngleMultiplier)
+        public void CalculateDamageByType(DamageType dt)
         {
             if (dt == DamageType.Kinetic)
             {
@@ -647,7 +688,7 @@ namespace ApsCalcUI
             }
             else if (dt == DamageType.Frag)
             {
-                CalculateFragDamage(fragAngleMultiplier);
+                CalculateFragDamage();
             }
             else if (dt == DamageType.HE)
             {
@@ -774,7 +815,7 @@ namespace ApsCalcUI
         /// Calculates damage from Frag
         /// </summary>
         /// <param name="fragAngleMultiplier">(2 + sqrt(cone angle °)) / 16</param>
-        void CalculateFragDamage(float fragAngleMultiplier)
+        void CalculateFragDamage()
         {
             // Get index of frag body
             int fragIndex = int.MaxValue;
@@ -796,7 +837,7 @@ namespace ApsCalcUI
             DamageDict[DamageType.Frag] = GaugeMultiplier * fragBodies * OverallChemModifier * 3000f * ApsModifier;
             // Frag count is based on raw damage before angle multiplier
             FragCount = MathF.Floor(MathF.Pow(DamageDict[DamageType.Frag], 0.25f));
-            DamageDict[DamageType.Frag] *= fragAngleMultiplier;
+            DamageDict[DamageType.Frag] *= FragAngleMultiplier;
             DamagePerFrag = DamageDict[DamageType.Frag] / FragCount;
         }
 
@@ -953,23 +994,12 @@ namespace ApsCalcUI
         }
 
 
-        public void CalculateDpsByType(
-            DamageType dt,
-            float targetAC,
-            float testIntervalSeconds,
-            float storagePerVolume,
-            float storagePerCost,
-            float ppm,
-            float ppv,
-            float ppc,
-            bool fuel,
-            Scheme targetScheme,
-            float impactAngleFromPerpendicularDegrees)
+        public void CalculateDpsByType(DamageType dt)
         {
             CalculateRecoil();
-            CalculateRailVolumeAndCost(testIntervalSeconds, storagePerVolume, storagePerCost, ppm, ppv, ppc, fuel);
+            CalculateRailVolumeAndCost();
             CalculateRecoilVolumeAndCost();
-            CalculateVariableVolumesAndCosts(testIntervalSeconds, storagePerVolume, storagePerCost);
+            CalculateVariableVolumesAndCosts();
             CalculateVolumeAndCostPerLoader();
 
             // Kinetic stats needed for pendepth testing
@@ -977,12 +1007,12 @@ namespace ApsCalcUI
             CalculateKineticDamage();
             CalculateAP();
 
-            if (RawKD >= targetScheme.GetRequiredKD(ArmorPierce, impactAngleFromPerpendicularDegrees, HeadModule == Module.SabotHead)
-                || (HeadModule == Module.HollowPoint && RawKD >= targetScheme.GetRequiredThump(ArmorPierce)))
+            if (RawKD >= TargetArmorScheme.GetRequiredKD(ArmorPierce, ImpactAngleFromPerpendicularDegrees, HeadModule == Module.SabotHead)
+                || (HeadModule == Module.HollowPoint && RawKD >= TargetArmorScheme.GetRequiredThump(ArmorPierce)))
             {
                 if (dt == DamageType.Kinetic)
                 {
-                    CalculateKineticDps(targetAC);
+                    CalculateKineticDps();
                 }
                 else if (dt == DamageType.EMP)
                 {
@@ -1038,23 +1068,23 @@ namespace ApsCalcUI
         /// <summary>
         /// Calculates applied kinetic damage for a given target armor class and impact angle
         /// </summary>
-        void CalculateKineticDps(float targetAC)
+        void CalculateKineticDps()
         {
             CalculateKineticDamage();
             CalculateAP();
 
             // Hollow point and CIWS ignore impact angle
-            if (HeadModule == Module.HollowPoint || targetAC == 20f)
+            if (HeadModule == Module.HollowPoint || TargetAC == 20f)
             {
-                DamageDict[DamageType.Kinetic] = RawKD * MathF.Min(1, ArmorPierce / targetAC);
+                DamageDict[DamageType.Kinetic] = RawKD * MathF.Min(1, ArmorPierce / TargetAC);
             }
             else if (HeadModule == Module.SabotHead)
             {
-                DamageDict[DamageType.Kinetic] = RawKD * MathF.Min(1, ArmorPierce / targetAC) * SabotAngleMultiplier;
+                DamageDict[DamageType.Kinetic] = RawKD * MathF.Min(1, ArmorPierce / TargetAC) * SabotAngleMultiplier;
             }
             else
             {
-                DamageDict[DamageType.Kinetic] = RawKD * MathF.Min(1, ArmorPierce / targetAC) * NonSabotAngleMultiplier;
+                DamageDict[DamageType.Kinetic] = RawKD * MathF.Min(1, ArmorPierce / TargetAC) * NonSabotAngleMultiplier;
             }
 
             DpsDict[DamageType.Kinetic] = DamageDict[DamageType.Kinetic] / ClusterReloadTime * Uptime;
@@ -1282,14 +1312,7 @@ namespace ApsCalcUI
         /// <summary>
         /// Calculates marginal volume per loader of rail chargers and engines
         /// </summary>
-        public void CalculateRailVolumeAndCost(
-            float testIntervalSeconds,
-            float storagePerVolume,
-            float storagePerCost,
-            float ppm,
-            float ppv,
-            float ppc,
-            bool fuel)
+        void CalculateRailVolumeAndCost()
         {
             if (RailDraw > 0)
             {
@@ -1298,34 +1321,34 @@ namespace ApsCalcUI
                 ChargerCost = ChargerVolume * 400f; // Chargers cost 400 per metre
 
                 // Volume and cost of engine
-                EngineVolume = drawPerSecond / ppv;
-                EngineCost = drawPerSecond / ppc;
+                EngineVolume = drawPerSecond / EnginePpv;
+                EngineCost = drawPerSecond / EnginePpc;
 
                 // Materials burned by engine
-                FuelBurned = drawPerSecond * testIntervalSeconds / ppm * Uptime;
+                FuelBurned = drawPerSecond * TestIntervalSeconds / EnginePpm * Uptime;
 
                 float fuelStorageNeeded;
-                if (fuel)
+                if (EngineUsesFuel)
                 {
                     // Volume and cost of special fuel access blocks
                     // 1 fuel per MINUTE = 1/50 m^3 and 0.2 material cost
                     // 1 fuel per SECOND = 60/50 (1.2) m^3 and 12 material cost
                     // 1 m^3 fuel access = 10 material cost
-                    float fuelAccessNeeded = drawPerSecond / ppm;
+                    float fuelAccessNeeded = drawPerSecond / EnginePpm;
                     FuelAccessVolume = fuelAccessNeeded * 1.2f;
                     FuelAccessCost = FuelAccessVolume * 10;
 
                     // Fuel access blocks store enough materials to run for 10 minutes
-                    fuelStorageNeeded = drawPerSecond * MathF.Max(testIntervalSeconds - 600f, 0) / ppm;
+                    fuelStorageNeeded = drawPerSecond * MathF.Max(TestIntervalSeconds - 600f, 0) / EnginePpm;
                 }
                 else
                 {
-                    fuelStorageNeeded = drawPerSecond * testIntervalSeconds / ppm;
+                    fuelStorageNeeded = drawPerSecond * TestIntervalSeconds / EnginePpm;
                 }
 
                 // Storage for materials burned
-                FuelStorageVolume = fuelStorageNeeded / storagePerVolume * Uptime;
-                FuelStorageCost = fuelStorageNeeded / storagePerCost * Uptime;
+                FuelStorageVolume = fuelStorageNeeded / StoragePerVolume * Uptime;
+                FuelStorageCost = fuelStorageNeeded / StoragePerCost * Uptime;
             }
             else
             {
@@ -1345,14 +1368,14 @@ namespace ApsCalcUI
         /// <summary>
         /// Calculates all volumes and costs dependent on testing interval
         /// </summary>
-        public void CalculateVariableVolumesAndCosts(float testIntervalSeconds, float storagePerVolume, float storagePerCost)
+        public void CalculateVariableVolumesAndCosts()
         {
             // Calculate cost of shell itself
             CostPerShell = (EffectiveProjectileModuleCount + (GPCasingCount + RGCasingCount) / 4)
                 * 5f
                 * GaugeMultiplier;
 
-            AmmoUsed = CostPerShell * testIntervalSeconds / ClusterReloadTime * Uptime;
+            AmmoUsed = CostPerShell * TestIntervalSeconds / ClusterReloadTime * Uptime;
 
             // Calculate volume and cost of ammo crates
             // 1/50 m^3 and 1/5 material cost per material per minute
@@ -1362,9 +1385,9 @@ namespace ApsCalcUI
 
             // Calculate volume and cost of material storage
             // Ammo crates hold enough materials for 10 minutes
-            float ammoStorageNeeded = CostPerShell * MathF.Max(testIntervalSeconds - 600f, 0) / ClusterReloadTime * Uptime;
-            AmmoStorageVolume = ammoStorageNeeded / storagePerVolume;
-            AmmoStorageCost = ammoStorageNeeded / storagePerCost;
+            float ammoStorageNeeded = CostPerShell * MathF.Max(TestIntervalSeconds - 600f, 0) / ClusterReloadTime * Uptime;
+            AmmoStorageVolume = ammoStorageNeeded / StoragePerVolume;
+            AmmoStorageCost = ammoStorageNeeded / StoragePerCost;
         }
 
         /// <summary>

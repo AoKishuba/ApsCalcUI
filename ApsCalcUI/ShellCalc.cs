@@ -5,6 +5,7 @@ using System.Linq;
 using System.IO;
 using System.Timers;
 using System.Diagnostics;
+using System.Diagnostics.Eventing.Reader;
 
 namespace ApsCalcUI
 {
@@ -12,7 +13,7 @@ namespace ApsCalcUI
     {
         public int HeadIndex;
         public float[] BodyModCounts;
-        public float GPCount;
+        public float GPMax;
         public float RGCount;
     }
 
@@ -211,7 +212,7 @@ namespace ApsCalcUI
             }
             else
             {
-                MaxGP = MaxGPInput;
+                MaxGP = maxGPInput;
             }
             VerboseOutputIsChecked = verboseOutputIsChecked;
             RawNumberOutputIsChecked = rawNumberOutputIsChecked;
@@ -273,26 +274,19 @@ namespace ApsCalcUI
 
 
         // Store top-DPS shells by loader length
-        public Shell TopBelt { get; set; } = new(default, default, default, default, default, default, default, default,
-            default, default, default, default, default, default, default, default);
-        public Shell Top1000 { get; set; } = new(default, default, default, default, default, default, default, default,
-            default, default, default, default, default, default, default, default);
-        public Shell Top2000 { get; set; } = new(default, default, default, default, default, default, default, default,
-            default, default, default, default, default, default, default, default);
-        public Shell Top3000 { get; set; } = new(default, default, default, default, default, default, default, default,
-            default, default, default, default, default, default, default, default);
-        public Shell Top4000 { get; set; } = new(default, default, default, default, default, default, default, default,
-            default, default, default, default, default, default, default, default);
-        public Shell Top5000 { get; set; } = new(default, default, default, default, default, default, default, default,
-            default, default, default, default, default, default, default, default);
-        public Shell Top6000 { get; set; } = new(default, default, default, default, default, default, default, default,
-            default, default, default, default, default, default, default, default);
-        public Shell Top7000 { get; set; } = new(default, default, default, default, default, default, default, default,
-            default, default, default, default, default, default, default, default);
-        public Shell Top8000 { get; set; } = new(default, default, default, default, default, default, default, default,
-            default, default, default, default, default, default, default, default);
-        public Shell TopDif { get; set; } = new(default, default, default, default, default, default, default, default,
-            default, default, default, default, default, default, default, default);
+        readonly LoaderSize Belt = new("1m (belt)", 0, 1000f);
+        readonly LoaderSize Dif = new("DIF", 0, 10_000f);
+        readonly LoaderSize[] RegularSizes =
+        [
+            new("1m", 0f, 1000f),
+            new("2m", 1000f, 2000f),
+            new("3m", 2000f, 3000f),
+            new("4m", 3000f, 4000f),
+            new("5m", 4000f, 5000f),
+            new("6m", 5000f, 6000f),
+            new("7m", 6000f, 7000f),
+            new("8m", 7000f, 8000f)
+        ];
 
         public Dictionary<string, Shell> TopDpsShells { get; set; } = [];
         public List<Shell> TopShellsLocal { get; set; } = [];
@@ -300,62 +294,69 @@ namespace ApsCalcUI
         private IEnumerable<ModuleConfig> GenerateModConfigs()
         {
             float maxModuleCount = 20f - FixedModuleTotal;
-            float gpMax = MathF.Min(MaxGP, maxModuleCount);
             for (int headIndex = 0; headIndex < HeadList.Count; headIndex++)
             {
-                for (float gpCount = 0; gpCount <= gpMax; gpCount += MathF.Min(GPIncrement, gpMax - gpCount + 0.01f))
+                float rgMax = MathF.Min(MaxRGInput, maxModuleCount);
+                for (float rgCount = 0; rgCount <= rgMax; rgCount++)
                 {
-                    float rgMax = MathF.Min(MaxRGInput, MathF.Floor(maxModuleCount - gpCount));
-                    for (float rgCount = 0; rgCount <= rgMax; rgCount++)
+                    float var0Max = maxModuleCount - rgCount;
+                    for (float var0Count = 0; var0Count <= var0Max; var0Count++)
                     {
-                        float var0Max = maxModuleCount - gpCount - rgCount;
-                        for (float var0Count = 0; var0Count <= var0Max; var0Count++)
+                        float var1Max = VariableModuleIndices[1] == VariableModuleIndices[0] ?
+                            0 : maxModuleCount - rgCount - var0Count;
+                        for (float var1Count = 0; var1Count <= var1Max; var1Count++)
                         {
-                            float var1Max = VariableModuleIndices[1] == VariableModuleIndices[0] ?
-                                0 : maxModuleCount - gpCount - rgCount - var0Count;
-                            for (float var1Count = 0; var1Count <= var1Max; var1Count++)
+                            float var2Max = VariableModuleIndices[2] == VariableModuleIndices[0] ?
+                                0 : maxModuleCount - rgCount - var0Count - var1Count;
+                            for (float var2Count = 0; var2Count <= var2Max; var2Count++)
                             {
-                                float var2Max = VariableModuleIndices[2] == VariableModuleIndices[0] ?
-                                    0 : maxModuleCount - gpCount - rgCount - var0Count - var1Count;
-                                for (float var2Count = 0; var2Count <= var2Max; var2Count++)
+                                float var3Max = VariableModuleIndices[3] == VariableModuleIndices[0] ?
+                                    0 : maxModuleCount - rgCount - var0Count - var1Count - var2Count;
+                                for (float var3Count = 0; var3Count <= var3Max; var3Count++)
                                 {
-                                    float var3Max = VariableModuleIndices[3] == VariableModuleIndices[0] ?
-                                        0 : maxModuleCount - gpCount - rgCount - var0Count - var1Count - var2Count;
-                                    for (float var3Count = 0; var3Count <= var3Max; var3Count++)
+                                    float var4Max = VariableModuleIndices[4] == VariableModuleIndices[0] ?
+                                        0 : maxModuleCount - rgCount - var0Count - var1Count - var2Count - var3Count;
+                                    for (float var4Count = 0; var4Count <= var4Max; var4Count++)
                                     {
-                                        float var4Max = VariableModuleIndices[4] == VariableModuleIndices[0] ?
-                                            0 : maxModuleCount - gpCount - rgCount - var0Count - var1Count - var2Count - var3Count;
-                                        for (float var4Count = 0; var4Count <= var4Max; var4Count++)
+                                        float var5Max = VariableModuleIndices[5] == VariableModuleIndices[0] ?
+                                            0 : 
+                                            maxModuleCount
+                                            - rgCount
+                                            - var0Count
+                                            - var1Count
+                                            - var2Count
+                                            - var3Count
+                                            - var4Count;
+                                        for (float var5Count = 0; var5Count <= var5Max; var5Count++)
                                         {
-                                            float var5Max = VariableModuleIndices[5] == VariableModuleIndices[0] ?
-                                                0 : 
+                                            float var6Max = VariableModuleIndices[6] == VariableModuleIndices[0] ?
+                                                0 :
                                                 maxModuleCount
-                                                - gpCount
                                                 - rgCount
                                                 - var0Count
                                                 - var1Count
                                                 - var2Count
                                                 - var3Count
-                                                - var4Count;
-                                            for (float var5Count = 0; var5Count <= var5Max; var5Count++)
+                                                - var4Count
+                                                - var5Count;
+                                            for (float var6Count = 0; var6Count <= var6Max; var6Count++)
                                             {
-                                                float var6Max = VariableModuleIndices[6] == VariableModuleIndices[0] ?
+                                                float var7Max = VariableModuleIndices[7] == VariableModuleIndices[0] ?
                                                     0 :
                                                     maxModuleCount
-                                                    - gpCount
                                                     - rgCount
                                                     - var0Count
                                                     - var1Count
                                                     - var2Count
                                                     - var3Count
                                                     - var4Count
-                                                    - var5Count;
-                                                for (float var6Count = 0; var6Count <= var6Max; var6Count++)
+                                                    - var5Count
+                                                    - var6Count;
+                                                for (float var7Count = 0; var7Count <= var7Max; var7Count++)
                                                 {
-                                                    float var7Max = VariableModuleIndices[7] == VariableModuleIndices[0] ?
+                                                    float var8Max = VariableModuleIndices[8] == VariableModuleIndices[0] ?
                                                         0 :
                                                         maxModuleCount
-                                                        - gpCount
                                                         - rgCount
                                                         - var0Count
                                                         - var1Count
@@ -363,13 +364,12 @@ namespace ApsCalcUI
                                                         - var3Count
                                                         - var4Count
                                                         - var5Count
-                                                        - var6Count;
-                                                    for (float var7Count = 0; var7Count <= var7Max; var7Count++)
+                                                        - var6Count
+                                                        - var7Count;
+                                                    for (float var8Count = 0; var8Count <= var8Max; var8Count++)
                                                     {
-                                                        float var8Max = VariableModuleIndices[8] == VariableModuleIndices[0] ?
-                                                            0 :
+                                                        float gpMax = MathF.Min(MaxGP,
                                                             maxModuleCount
-                                                            - gpCount
                                                             - rgCount
                                                             - var0Count
                                                             - var1Count
@@ -378,28 +378,26 @@ namespace ApsCalcUI
                                                             - var4Count
                                                             - var5Count
                                                             - var6Count
-                                                            - var7Count;
-                                                        for (float var8Count = 0; var8Count <= var8Max; var8Count++)
+                                                            - var7Count
+                                                            - var8Count);
+                                                        yield return new ModuleConfig
                                                         {
-                                                            yield return new ModuleConfig
-                                                            {
-                                                                GPCount = gpCount,
-                                                                RGCount = rgCount,
-                                                                HeadIndex = HeadList[headIndex],
-                                                                BodyModCounts =
-                                                                [
-                                                                    var0Count,
-                                                                    var1Count,
-                                                                    var2Count,
-                                                                    var3Count,
-                                                                    var4Count,
-                                                                    var5Count,
-                                                                    var6Count,
-                                                                    var7Count,
-                                                                    var8Count
-                                                                ]
-                                                            };
-                                                        }
+                                                            GPMax = gpMax,
+                                                            RGCount = rgCount,
+                                                            HeadIndex = HeadList[headIndex],
+                                                            BodyModCounts =
+                                                            [
+                                                                var0Count,
+                                                                var1Count,
+                                                                var2Count,
+                                                                var3Count,
+                                                                var4Count,
+                                                                var5Count,
+                                                                var6Count,
+                                                                var7Count,
+                                                                var8Count
+                                                            ]
+                                                        };
                                                     }
                                                 }
                                             }
@@ -414,74 +412,184 @@ namespace ApsCalcUI
         }
 
         /// <summary>
-        /// Runs nested binary search algorithm on rail draw to determine optimum for a given GP count
+        /// Calculates minimum GP needed to achieve given velocity and effective range
         /// </summary>
-        /// <param name="shellUnderTesting">Shell being tested (normal or belt)</param>
-        float CalculateOptimalRailDraw(Shell shellUnderTesting,
-            float maxDraw,
-            float minDraw,
+        public float CalculateMinimumGPForVelocityandRange(Shell shellUnderTesting)
+        {
+            shellUnderTesting.RailDraw = GunUsesRecoilAbsorbers ?
+                MathF.Min(shellUnderTesting.MaxDraw, MaxDrawInput)
+                : MathF.Min(MathF.Min(MaxRecoilInput, shellUnderTesting.MaxDraw), MaxDrawInput);
+
+            shellUnderTesting.CalculateRecoil();
+            // Calculate effective time
+            float gravityCompensatorCount = 0;
+            int modIndex = 0;
+            foreach (float modCount in shellUnderTesting.BodyModuleCounts)
+            {
+                if (Module.AllModules[modIndex] == Module.GravCompensator)
+                {
+                    gravityCompensatorCount = shellUnderTesting.BodyModuleCounts[modIndex];
+                    break;
+                }
+                else
+                {
+                    modIndex++;
+                }
+            }
+            float effectiveTime =
+                10f
+                * shellUnderTesting.OverallVelocityModifier
+                * (shellUnderTesting.ProjectileLength / 1000f)
+                * (1f + gravityCompensatorCount);
+
+            // Determine whether range or velocity is limiting factor
+            float minVelocity = MathF.Max(MinVelocityInput, MinEffectiveRangeInput / effectiveTime);
+
+            // Calculate GP recoil required for either range or velocity
+            float minGPRecoilForVelocity = MathF.Pow(minVelocity / shellUnderTesting.OverallVelocityModifier, 2)
+                * GaugeMultiplier
+                * shellUnderTesting.ProjectileLength
+                / Gauge
+                / 85f
+                - shellUnderTesting.RailDraw;
+
+            // Calculate min GP from recoil
+            float minGPForVelocity = minGPRecoilForVelocity / GaugeMultiplier / 2500f;
+
+            float minGP = MathF.Max(0, minGPForVelocity);
+
+            return minGP;
+        }
+
+
+        void OptimizeGPAndRail(Shell shellUnderTesting,
+            float minGP,
+            float maxGP,
             Dictionary<DamageType, float> referenceDict)
         {
-            float optimalDraw = 0;
+            float minDraw;
+            float maxDraw;
+            float optimalGP = minGP;
 
             // Binary search to find optimal draw without testing every value
             float midRangeLower;
             float midRangeLowerScore;
             float midRangeUpper;
             float midRangeUpperScore;
-            float topOfRange = maxDraw;
-            float bottomOfRange = minDraw;
+            float topOfRange = maxGP;
+            float bottomOfRange = minGP;
 
-            int iterations = 0;
+            float maxRecoil = GunUsesRecoilAbsorbers ?
+                MaxRecoilInput : shellUnderTesting.CalculateMaxDrawForInaccuracy();
+
             while (bottomOfRange < topOfRange)
             {
-                iterations++;
-                midRangeLower = MathF.Floor((topOfRange + bottomOfRange) / 2f);
-                midRangeUpper = midRangeLower + 1f;
+                midRangeLower = (topOfRange + bottomOfRange) / 2f;
+                midRangeUpper = midRangeLower + 0.01f;
 
-                shellUnderTesting.RailDraw = midRangeLower;
-                shellUnderTesting.CalculateDpsByType(
-                    DamageType,
-                    TargetAC,
-                    TestIntervalSeconds,
-                    StoragePerVolume,
-                    StoragePerCost,
-                    EnginePpm,
-                    EnginePpv,
-                    EnginePpc,
-                    EngineUsesFuel,
-                    TargetArmorScheme,
-                    ImpactAngleFromPerpendicularDegrees);
-                midRangeLowerScore = referenceDict[DamageType];
+                shellUnderTesting.GPCasingCount = midRangeLower;
+                shellUnderTesting.CalculateRecoil();
+                minDraw = shellUnderTesting.CalculateMinimumDrawForVelocityandRange();
+                maxDraw = GunUsesRecoilAbsorbers ?
+                    MathF.Min(MathF.Min(MaxRecoilInput - shellUnderTesting.GPRecoil, shellUnderTesting.MaxDraw), MaxDrawInput)
+                    : MathF.Min(MathF.Min(MathF.Min(shellUnderTesting.CalculateMaxDrawForInaccuracy(), MaxRecoilInput - shellUnderTesting.GPRecoil), shellUnderTesting.MaxDraw), MaxDrawInput);
+                maxDraw = MathF.Min(maxDraw, MaxRecoilInput - shellUnderTesting.GPRecoil);
+                if (minDraw > maxDraw)
+                {
+                    midRangeLowerScore = 0;
+                }
+                else
+                {
+                    OptimizeRailDraw(shellUnderTesting, maxDraw, minDraw, referenceDict);
+                    shellUnderTesting.CalculateDpsByType(DamageType);
+                    midRangeLowerScore = referenceDict[DamageType];
+                }
 
-                shellUnderTesting.RailDraw = midRangeUpper;
-                shellUnderTesting.CalculateDpsByType(
-                    DamageType,
-                    TargetAC,
-                    TestIntervalSeconds,
-                    StoragePerVolume,
-                    StoragePerCost,
-                    EnginePpm,
-                    EnginePpv,
-                    EnginePpc,
-                    EngineUsesFuel,
-                    TargetArmorScheme,
-                    ImpactAngleFromPerpendicularDegrees);
+
+                shellUnderTesting.GPCasingCount = midRangeUpper;
+                shellUnderTesting.CalculateRecoil();
+                minDraw = shellUnderTesting.CalculateMinimumDrawForVelocityandRange();
+                maxDraw = MathF.Min(shellUnderTesting.MaxDraw, MaxDrawInput);
+                maxDraw = MathF.Min(maxDraw, MaxRecoilInput - shellUnderTesting.GPRecoil);
+                OptimizeRailDraw(shellUnderTesting, maxDraw, minDraw, referenceDict);
+                shellUnderTesting.CalculateDpsByType(DamageType);
                 midRangeUpperScore = referenceDict[DamageType];
+                if (minDraw > maxDraw)
+                {
+                    midRangeLowerScore = 0;
+                }
+                else
+                {
+                    OptimizeRailDraw(shellUnderTesting, maxDraw, minDraw, referenceDict);
+                    shellUnderTesting.CalculateDpsByType(DamageType);
+                    midRangeUpperScore = referenceDict[DamageType];
+                }
 
                 if (midRangeLowerScore >= midRangeUpperScore)
                 {
                     topOfRange = midRangeLower;
-                    optimalDraw = midRangeLower;
+                    optimalGP = midRangeLower;
                 }
                 else
                 {
                     bottomOfRange = midRangeUpper;
-                    optimalDraw = midRangeUpper;
+                    optimalGP = midRangeUpper;
                 }
             }
 
-            return optimalDraw;
+            shellUnderTesting.GPCasingCount = optimalGP;
+        }
+
+        /// <summary>
+        /// Runs nested binary search algorithm on rail draw to determine optimum for a given GP count
+        /// </summary>
+        /// <param name="shellUnderTesting">Shell being tested (normal or belt)</param>
+        /// <param name="maxDraw">Max allowed rail draw</param>
+        /// <param name="minDraw">Min allowed rail draw</param>
+        /// <param name="referenceDict">DPS per Cost or DPS per Volume, depending on test type</param>
+        void OptimizeRailDraw(Shell shellUnderTesting,
+            float maxDraw,
+            float minDraw,
+            Dictionary<DamageType, float> referenceDict)
+        {
+            float optimalDraw = minDraw;
+
+            if (maxDraw > 0)
+            {
+                // Binary search to find optimal draw without testing every value
+                float midRangeLower;
+                float midRangeLowerScore;
+                float midRangeUpper;
+                float midRangeUpperScore;
+                float topOfRange = maxDraw;
+                float bottomOfRange = minDraw;
+
+                while (bottomOfRange < topOfRange)
+                {
+                    midRangeLower = MathF.Floor((topOfRange + bottomOfRange) / 2f);
+                    midRangeUpper = midRangeLower + 1f;
+
+                    shellUnderTesting.RailDraw = midRangeLower;
+                    shellUnderTesting.CalculateDpsByType(DamageType);
+                    midRangeLowerScore = referenceDict[DamageType];
+
+                    shellUnderTesting.RailDraw = midRangeUpper;
+                    shellUnderTesting.CalculateDpsByType(DamageType);
+                    midRangeUpperScore = referenceDict[DamageType];
+
+                    if (midRangeLowerScore >= midRangeUpperScore)
+                    {
+                        topOfRange = midRangeLower;
+                        optimalDraw = midRangeLower;
+                    }
+                    else
+                    {
+                        bottomOfRange = midRangeUpper;
+                        optimalDraw = midRangeUpper;
+                    }
+                }
+            }
+            shellUnderTesting.RailDraw = optimalDraw;
         }
 
         /// <summary>
@@ -494,98 +602,40 @@ namespace ApsCalcUI
             // Check performance against top shells
             shellUnderTesting.CalculateVelocity();
             shellUnderTesting.CalculateEffectiveRange();
-            shellUnderTesting.CalculateDpsByType(
-                DamageType,
-                TargetAC,
-                TestIntervalSeconds,
-                StoragePerVolume,
-                StoragePerCost,
-                EnginePpm,
-                EnginePpv,
-                EnginePpc,
-                EngineUsesFuel,
-                TargetArmorScheme,
-                ImpactAngleFromPerpendicularDegrees);
+            shellUnderTesting.CalculateDpsByType(DamageType);
 
             if (FiringPieceIsDif)
             {
                 Dictionary<DamageType, float> topReferenceDict = TestType == TestType.DpsPerVolume ?
-                    TopDif.DpsPerVolumeDict : TopDif.DpsPerCostDict;
+                    Dif.TopShell.DpsPerVolumeDict : Dif.TopShell.DpsPerCostDict;
                 if (referenceDict[DamageType] > topReferenceDict[DamageType])
                 {
-                    TopDif = shellUnderTesting;
+                    Dif.TopShell = shellUnderTesting;
                 }
             }
-            else if (shellUnderTesting.TotalLength <= 1000f)
+            else if (shellUnderTesting.IsBelt)
             {
                 Dictionary<DamageType, float> topReferenceDict = TestType == TestType.DpsPerVolume ?
-                    Top1000.DpsPerVolumeDict : Top1000.DpsPerCostDict;
+                    Belt.TopShell.DpsPerVolumeDict : Belt.TopShell.DpsPerCostDict;
                 if (referenceDict[DamageType] > topReferenceDict[DamageType])
                 {
-                    Top1000 = shellUnderTesting;
+                    Belt.TopShell = shellUnderTesting;
                 }
             }
-            else if (shellUnderTesting.TotalLength <= 2000f)
+            else
             {
-                Dictionary<DamageType, float> topReferenceDict = TestType == TestType.DpsPerVolume ?
-                    Top2000.DpsPerVolumeDict : Top2000.DpsPerCostDict;
-                if (referenceDict[DamageType] > topReferenceDict[DamageType])
+                for (int loaderSizeIndex = 0; loaderSizeIndex < RegularSizes.Length; loaderSizeIndex++)
                 {
-                    Top2000 = shellUnderTesting;
-                }
-            }
-            else if (shellUnderTesting.TotalLength <= 3000f)
-            {
-                Dictionary<DamageType, float> topReferenceDict = TestType == TestType.DpsPerVolume ?
-                    Top3000.DpsPerVolumeDict : Top3000.DpsPerCostDict;
-                if (referenceDict[DamageType] > topReferenceDict[DamageType])
-                {
-                    Top3000 = shellUnderTesting;
-                }
-            }
-            else if (shellUnderTesting.TotalLength <= 4000f)
-            {
-                Dictionary<DamageType, float> topReferenceDict = TestType == TestType.DpsPerVolume ?
-                    Top4000.DpsPerVolumeDict : Top4000.DpsPerCostDict;
-                if (referenceDict[DamageType] > topReferenceDict[DamageType])
-                {
-                    Top4000 = shellUnderTesting;
-                }
-            }
-            else if (shellUnderTesting.TotalLength <= 5000f)
-            {
-                Dictionary<DamageType, float> topReferenceDict = TestType == TestType.DpsPerVolume ?
-                    Top5000.DpsPerVolumeDict : Top5000.DpsPerCostDict;
-                if (referenceDict[DamageType] > topReferenceDict[DamageType])
-                {
-                    Top5000 = shellUnderTesting;
-                }
-            }
-            else if (shellUnderTesting.TotalLength <= 6000f)
-            {
-                Dictionary<DamageType, float> topReferenceDict = TestType == TestType.DpsPerVolume ?
-                    Top6000.DpsPerVolumeDict : Top6000.DpsPerCostDict;
-                if (referenceDict[DamageType] > topReferenceDict[DamageType])
-                {
-                    Top6000 = shellUnderTesting;
-                }
-            }
-            else if (shellUnderTesting.TotalLength <= 7000f)
-            {
-                Dictionary<DamageType, float> topReferenceDict = TestType == TestType.DpsPerVolume ?
-                    Top7000.DpsPerVolumeDict : Top7000.DpsPerCostDict;
-                if (referenceDict[DamageType] > topReferenceDict[DamageType])
-                {
-                    Top7000 = shellUnderTesting;
-                }
-            }
-            else if (shellUnderTesting.TotalLength <= 8000f)
-            {
-                Dictionary<DamageType, float> topReferenceDict = TestType == TestType.DpsPerVolume ?
-                    Top8000.DpsPerVolumeDict : Top8000.DpsPerCostDict;
-                if (referenceDict[DamageType] > topReferenceDict[DamageType])
-                {
-                    Top8000 = shellUnderTesting;
+                    LoaderSize topSize = RegularSizes[loaderSizeIndex];
+                    if (shellUnderTesting.TotalLength > topSize.MinLength && shellUnderTesting.TotalLength <= topSize.MaxLength)
+                    {
+                        Dictionary<DamageType, float> topReferenceDict = TestType == TestType.DpsPerVolume ?
+                            topSize.TopShell.DpsPerVolumeDict : topSize.TopShell.DpsPerCostDict;
+                        if (referenceDict[DamageType] > topReferenceDict[DamageType])
+                        {
+                            topSize.TopShell = shellUnderTesting;
+                        }
+                    }
                 }
             }
         }
@@ -612,12 +662,28 @@ namespace ApsCalcUI
                     BeltfedClipsPerLoader,
                     BeltfedInputsPerLoader,
                     UsesAmmoEjector,
-                    modConfig.GPCount,
                     modConfig.RGCount,
                     RateOfFireRpm,
                     GunUsesRecoilAbsorbers,
                     FiringPieceIsDif
-                    );
+                    )
+                {
+                    TargetAC = TargetAC,
+                    ImpactAngleFromPerpendicularDegrees = ImpactAngleFromPerpendicularDegrees,
+                    TestIntervalSeconds = TestIntervalSeconds,
+                    StoragePerVolume = StoragePerVolume,
+                    StoragePerCost = StoragePerCost,
+                    EnginePpm = EnginePpm,
+                    EnginePpv = EnginePpv,
+                    EnginePpc = EnginePpc,
+                    EngineUsesFuel = EngineUsesFuel,
+                    TargetArmorScheme = TargetArmorScheme,
+                    MinVelocityInput = MinVelocityInput,
+                    MinRangeInput = MinEffectiveRangeInput,
+                    MaxBarrelLengthInM = MaxBarrelLengthInM,
+                    DesiredInaccuracy = MaxInaccuracy,
+                    FragAngleMultiplier = FragAngleMultiplier
+                };
                 FixedModuleCounts.CopyTo(shellUnderTesting.BodyModuleCounts, 0);
 
                 // Add variable modules
@@ -633,7 +699,7 @@ namespace ApsCalcUI
                 bool lengthWithinBounds = true;
                 if (LimitBarrelLength
                     && shellUnderTesting.ProjectileLength 
-                        > shellUnderTesting.CalculateMaxProjectileLengthForInaccuracy(MaxBarrelLengthInM, MaxInaccuracy))
+                        > shellUnderTesting.CalculateMaxProjectileLengthForInaccuracy())
                 {
                     lengthWithinBounds = false;
                 }
@@ -648,27 +714,36 @@ namespace ApsCalcUI
                     shellUnderTesting.CalculateVelocityModifier();
                     shellUnderTesting.CalculateMaxDraw();
 
-                    float maxDraw = MathF.Min(shellUnderTesting.MaxDraw, MaxDrawInput);
-                    maxDraw = MathF.Min(maxDraw, MaxRecoilInput - shellUnderTesting.GPRecoil);
+                    float minGP = CalculateMinimumGPForVelocityandRange(shellUnderTesting);
+                    // GP already limited by inaccuracy; limit by recoil
+                    float maxGP = MathF.Min(MaxGP, MaxRecoilInput / GaugeMultiplier / 2500f);
+
+                    for (int sizeIndex = 0; sizeIndex < RegularSizes.Length; sizeIndex++)
+                    {
+                        LoaderSize loaderSize = RegularSizes[sizeIndex];
+
+                    }
+
+
                     if (!shellUnderTesting.GunUsesRecoilAbsorbers)
                     {
-                        maxDraw = MathF.Min(maxDraw, shellUnderTesting.CalculateMaxDrawForInaccuracy(MaxBarrelLengthInM, MaxInaccuracy));
+                        maxDraw = MathF.Min(maxDraw, shellUnderTesting.CalculateMaxDrawForInaccuracy());
                     }
-                    float minDraw = shellUnderTesting.CalculateMinimumDrawForVelocityandRange(MinVelocityInput, MinEffectiveRangeInput);
+                    float minDraw = shellUnderTesting.CalculateMinimumDrawForVelocityandRange();
 
                     if (maxDraw >= minDraw)
                     {
-                        shellUnderTesting.CalculateReloadTime(TestIntervalSeconds);
+                        shellUnderTesting.CalculateReloadTime();
                         shellUnderTesting.CalculateDamageModifierByType(DamageType);
                         shellUnderTesting.SabotAngleMultiplier = SabotAngleMultiplier;
                         shellUnderTesting.NonSabotAngleMultiplier = NonSabotAngleMultiplier;
-                        shellUnderTesting.CalculateDamageByType(DamageType, FragAngleMultiplier);
+                        shellUnderTesting.CalculateDamageByType(DamageType);
 
                         // Users can enter minimum disruptor values even when optimizing for other damage types
                         if (MinDisruptor > 0 && DamageType != DamageType.Disruptor)
                         {
-                            shellUnderTesting.CalculateDamageByType(DamageType.EMP, FragAngleMultiplier);
-                            shellUnderTesting.CalculateDamageByType(DamageType.Disruptor, FragAngleMultiplier);
+                            shellUnderTesting.CalculateDamageByType(DamageType.EMP);
+                            shellUnderTesting.CalculateDamageByType(DamageType.Disruptor);
                         }
 
                         if ((shellUnderTesting.DamageDict[DamageType.Disruptor] >= MinDisruptor) || MinDisruptor == 0)
@@ -676,16 +751,13 @@ namespace ApsCalcUI
                             shellUnderTesting.CalculateCooldownTime();
                             shellUnderTesting.CalculateCoolerVolumeAndCost();
                             shellUnderTesting.CalculateLoaderVolumeAndCost();
-                            shellUnderTesting.CalculateVariableVolumesAndCosts(TestIntervalSeconds, StoragePerVolume, StoragePerCost);
+                            shellUnderTesting.CalculateVariableVolumesAndCosts();
 
                             // Determine which "DPS Per" dictionary will be used for testing
                             Dictionary<DamageType, float> referenceDict = TestType == TestType.DpsPerVolume ?
                                 shellUnderTesting.DpsPerVolumeDict : shellUnderTesting.DpsPerCostDict;
                             // Determine optimal rail draw
-                            float optimalDraw = maxDraw > 0 ? 
-                                CalculateOptimalRailDraw(shellUnderTesting, maxDraw, minDraw, referenceDict)
-                                : 0;
-                            shellUnderTesting.RailDraw = optimalDraw;
+                            OptimizeRailDraw(shellUnderTesting, maxDraw, minDraw, referenceDict);
                             CompareToTopShells(shellUnderTesting, referenceDict);
 
                             // Beltfed testing
@@ -703,11 +775,27 @@ namespace ApsCalcUI
                                     BeltfedClipsPerLoader,
                                     BeltfedInputsPerLoader,
                                     UsesAmmoEjector,
-                                    modConfig.GPCount,
                                     modConfig.RGCount,
                                     RateOfFireRpm,
                                     GunUsesRecoilAbsorbers,
-                                    FiringPieceIsDif);
+                                    FiringPieceIsDif)
+                                {
+                                    TargetAC = TargetAC,
+                                    ImpactAngleFromPerpendicularDegrees = ImpactAngleFromPerpendicularDegrees,
+                                    TestIntervalSeconds = TestIntervalSeconds,
+                                    StoragePerVolume = StoragePerVolume,
+                                    StoragePerCost = StoragePerCost,
+                                    EnginePpm = EnginePpm,
+                                    EnginePpv = EnginePpv,
+                                    EnginePpc = EnginePpc,
+                                    EngineUsesFuel = EngineUsesFuel,
+                                    TargetArmorScheme = TargetArmorScheme,
+                                    MinVelocityInput = MinVelocityInput,
+                                    MinRangeInput = MinEffectiveRangeInput,
+                                    MaxBarrelLengthInM = MaxBarrelLengthInM,
+                                    DesiredInaccuracy = MaxInaccuracy,
+                                    FragAngleMultiplier = FragAngleMultiplier
+                                };
                                 FixedModuleCounts.CopyTo(shellUnderTestingBelt.BodyModuleCounts, 0);
 
 
@@ -735,16 +823,13 @@ namespace ApsCalcUI
                                 shellUnderTestingBelt.CalculateVelocityModifier();
                                 shellUnderTestingBelt.CalculateRecoil();
                                 shellUnderTestingBelt.CalculateMaxDraw();
-                                shellUnderTestingBelt.CalculateReloadTime(TestIntervalSeconds);
-                                shellUnderTestingBelt.CalculateVariableVolumesAndCosts(
-                                    TestIntervalSeconds, 
-                                    StoragePerVolume, 
-                                    StoragePerCost);
+                                shellUnderTestingBelt.CalculateReloadTime();
+                                shellUnderTestingBelt.CalculateVariableVolumesAndCosts();
                                 shellUnderTestingBelt.CalculateCooldownTime();
                                 shellUnderTestingBelt.CalculateDamageModifierByType(DamageType);
                                 shellUnderTestingBelt.SabotAngleMultiplier = SabotAngleMultiplier;
                                 shellUnderTestingBelt.NonSabotAngleMultiplier = NonSabotAngleMultiplier;
-                                shellUnderTestingBelt.CalculateDamageByType(DamageType, FragAngleMultiplier);
+                                shellUnderTestingBelt.CalculateDamageByType(DamageType);
                                 shellUnderTestingBelt.CalculateLoaderVolumeAndCost();
                                 shellUnderTestingBelt.CalculateCoolerVolumeAndCost();
 
@@ -752,33 +837,8 @@ namespace ApsCalcUI
                                 // Determine which "DPS Per" dictionary will be used for testing
                                 Dictionary<DamageType, float> referenceDictBelt = TestType == TestType.DpsPerVolume ?
                                     shellUnderTestingBelt.DpsPerVolumeDict : shellUnderTestingBelt.DpsPerCostDict;
-                                optimalDraw = maxDraw > 0 ?
-                                    CalculateOptimalRailDraw(shellUnderTestingBelt, maxDraw, minDraw, referenceDictBelt)
-                                    : 0;
-
-                                // Check performance against top shell
-                                shellUnderTestingBelt.RailDraw = optimalDraw;
-                                shellUnderTestingBelt.CalculateVelocity();
-                                shellUnderTestingBelt.CalculateEffectiveRange();
-                                shellUnderTestingBelt.CalculateDpsByType(
-                                    DamageType,
-                                    TargetAC,
-                                    TestIntervalSeconds,
-                                    StoragePerVolume,
-                                    StoragePerCost,
-                                    EnginePpm,
-                                    EnginePpv,
-                                    EnginePpc,
-                                    EngineUsesFuel,
-                                    TargetArmorScheme,
-                                    ImpactAngleFromPerpendicularDegrees);
-
-                                Dictionary<DamageType, float> topReferenceDictBelt = TestType == TestType.DpsPerVolume ?
-                                    TopBelt.DpsPerVolumeDict : TopBelt.DpsPerCostDict;
-                                if (referenceDictBelt[DamageType] > topReferenceDictBelt[DamageType])
-                                {
-                                    TopBelt = shellUnderTestingBelt;
-                                }
+                                OptimizeRailDraw(shellUnderTestingBelt, maxDraw, minDraw, referenceDictBelt);
+                                CompareToTopShells(shellUnderTestingBelt, referenceDictBelt);
                             }
                         }
                     }
@@ -792,112 +852,23 @@ namespace ApsCalcUI
         /// </summary>
         public void AddTopShellsToLocalList()
         {
-            if (TopBelt.DpsDict[DamageType] > 0)
+            if (Dif.TopShell.DpsDict[DamageType] > 0)
             {
-                TopShellsLocal.Add(TopBelt);
+                TopShellsLocal.Add(Dif.TopShell);
             }
 
-            if (Top1000.DpsDict[DamageType] > 0)
+            if (Belt.TopShell.DpsDict[DamageType] > 0)
             {
-                TopShellsLocal.Add(Top1000);
+                TopShellsLocal.Add(Belt.TopShell);
             }
 
-            if (Top2000.DpsDict[DamageType] > 0)
+            for (int loaderSizeIndex = 0; loaderSizeIndex < RegularSizes.Length; loaderSizeIndex++)
             {
-                TopShellsLocal.Add(Top2000);
-            }
-
-            if (Top3000.DpsDict[DamageType] > 0)
-            {
-                TopShellsLocal.Add(Top3000);
-            }
-
-            if (Top4000.DpsDict[DamageType] > 0)
-            {
-                TopShellsLocal.Add(Top4000);
-            }
-
-            if (Top5000.DpsDict[DamageType] > 0)
-            {
-                TopShellsLocal.Add(Top5000);
-            }
-
-            if (Top6000.DpsDict[DamageType] > 0)
-            {
-                TopShellsLocal.Add(Top6000);
-            }
-
-            if (Top7000.DpsDict[DamageType] > 0)
-            {
-                TopShellsLocal.Add(Top7000);
-            }
-
-            if (Top8000.DpsDict[DamageType] > 0)
-            {
-                TopShellsLocal.Add(Top8000);
-            }
-
-            if (TopDif.DpsDict[DamageType] > 0)
-            {
-                TopShellsLocal.Add(TopDif);
-            }
-        }
-
-
-        /// <summary>
-        /// Adds current top-performing shells to TopShells dictionary for writing to file
-        /// Note that DPS is used only to determine whether a shell has been assigned to a length slot
-        /// </summary>
-        public void AddTopShellsToDictionary()
-        {
-            if (TopBelt.DpsDict[DamageType] > 0)
-            {
-                TopDpsShells.Add("1m (belt)", TopBelt);
-            }
-
-            if (Top1000.DpsDict[DamageType] > 0)
-            {
-                TopDpsShells.Add("1m", Top1000);
-            }
-
-            if (Top2000.DpsDict[DamageType] > 0)
-            {
-                TopDpsShells.Add("2m", Top2000);
-            }
-
-            if (Top3000.DpsDict[DamageType] > 0)
-            {
-                TopDpsShells.Add("3m", Top3000);
-            }
-
-            if (Top4000.DpsDict[DamageType] > 0)
-            {
-                TopDpsShells.Add("4m", Top4000);
-            }
-
-            if (Top5000.DpsDict[DamageType] > 0)
-            {
-                TopDpsShells.Add("5m", Top5000);
-            }
-
-            if (Top6000.DpsDict[DamageType] > 0)
-            {
-                TopDpsShells.Add("6m", Top6000);
-            }
-
-            if (Top7000.DpsDict[DamageType] > 0)
-            {
-                TopDpsShells.Add("7m", Top7000);
-            }
-
-            if (Top8000.DpsDict[DamageType] > 0)
-            {
-                TopDpsShells.Add("8m", Top8000);
-            }
-
-            if (TopDif.DpsDict[DamageType] > 0)
-            {
-                TopDpsShells.Add("DIF", TopDif);
+                LoaderSize topSize = RegularSizes[loaderSizeIndex];
+                if (topSize.TopShell.DpsDict[DamageType] > 0)
+                {
+                    TopShellsLocal.Add(topSize.TopShell);
+                }
             }
         }
 
@@ -915,92 +886,62 @@ namespace ApsCalcUI
                 if (FiringPieceIsDif)
                 {
                     Dictionary<DamageType, float> topReferenceDict = TestType == TestType.DpsPerVolume ?
-                        TopDif.DpsPerVolumeDict : TopDif.DpsPerCostDict;
+                        Dif.TopShell.DpsPerVolumeDict : Dif.TopShell.DpsPerCostDict;
                     if (referenceDict[DamageType] > topReferenceDict[DamageType])
                     {
-                        TopDif = rawShell;
+                        Dif.TopShell = rawShell;
                     }
                 }
                 else if (rawShell.IsBelt)
                 {
                     Dictionary<DamageType, float> topReferenceDict = TestType == TestType.DpsPerVolume ?
-                        TopBelt.DpsPerVolumeDict : TopBelt.DpsPerCostDict;
+                        Belt.TopShell.DpsPerVolumeDict : Belt.TopShell.DpsPerCostDict;
                     if (referenceDict[DamageType] > topReferenceDict[DamageType])
                     {
-                        TopBelt = rawShell;
+                        Belt.TopShell = rawShell;
                     }
                 }
-                else if (rawShell.TotalLength <= 1_000f)
+                else
                 {
-                    Dictionary<DamageType, float> topReferenceDict = TestType == TestType.DpsPerVolume ?
-                        Top1000.DpsPerVolumeDict : Top1000.DpsPerCostDict;
-                    if (referenceDict[DamageType] > topReferenceDict[DamageType])
+                    for (int loaderSizeIndex = 0; loaderSizeIndex < RegularSizes.Length; loaderSizeIndex++)
                     {
-                        Top1000 = rawShell;
+                        LoaderSize topSize = RegularSizes[loaderSizeIndex];
+                        if (rawShell.TotalLength > topSize.MinLength && rawShell.TotalLength <= topSize.MaxLength)
+                        {
+                            Dictionary<DamageType, float> topReferenceDict = TestType == TestType.DpsPerVolume ?
+                                topSize.TopShell.DpsPerVolumeDict : topSize.TopShell.DpsPerCostDict;
+                            if (referenceDict[DamageType] > topReferenceDict[DamageType])
+                            {
+                                topSize.TopShell = rawShell;
+                            }
+                        }
                     }
                 }
-                else if (rawShell.TotalLength <= 2_000f)
+            }
+        }
+
+        /// <summary>
+        /// Adds current top-performing shells to TopShells dictionary for writing to file
+        /// Note that DPS is used only to determine whether a shell has been assigned to a length slot
+        /// </summary>
+        public void AddTopShellsToDictionary()
+        {
+            if (Dif.TopShell.DpsDict[DamageType] > 0)
+            {
+                TopDpsShells.Add(Dif.Name, Dif.TopShell);
+            }
+
+            if (Belt.TopShell.DpsDict[DamageType] > 0)
+            {
+                TopDpsShells.Add(Belt.Name, Belt.TopShell);
+            }
+
+            for (int loaderSizeIndex = 0; loaderSizeIndex < RegularSizes.Length; loaderSizeIndex++)
+            {
+                LoaderSize topSize = RegularSizes[loaderSizeIndex];
+                if (topSize.TopShell.DpsDict[DamageType] > 0)
                 {
-                    Dictionary<DamageType, float> topReferenceDict = TestType == TestType.DpsPerVolume ?
-                        Top2000.DpsPerVolumeDict : Top2000.DpsPerCostDict;
-                    if (referenceDict[DamageType] > topReferenceDict[DamageType])
-                    {
-                        Top2000 = rawShell;
-                    }
-                }
-                else if (rawShell.TotalLength <= 3_000f)
-                {
-                    Dictionary<DamageType, float> topReferenceDict = TestType == TestType.DpsPerVolume ?
-                        Top3000.DpsPerVolumeDict : Top3000.DpsPerCostDict;
-                    if (referenceDict[DamageType] > topReferenceDict[DamageType])
-                    {
-                        Top3000 = rawShell;
-                    }
-                }
-                else if (rawShell.TotalLength <= 4_000f)
-                {
-                    Dictionary<DamageType, float> topReferenceDict = TestType == TestType.DpsPerVolume ?
-                        Top4000.DpsPerVolumeDict : Top4000.DpsPerCostDict;
-                    if (referenceDict[DamageType] > topReferenceDict[DamageType])
-                    {
-                        Top4000 = rawShell;
-                    }
-                }
-                else if (rawShell.TotalLength <= 5_000f)
-                {
-                    Dictionary<DamageType, float> topReferenceDict = TestType == TestType.DpsPerVolume ?
-                        Top5000.DpsPerVolumeDict : Top5000.DpsPerCostDict;
-                    if (referenceDict[DamageType] > topReferenceDict[DamageType])
-                    {
-                        Top5000 = rawShell;
-                    }
-                }
-                else if (rawShell.TotalLength <= 6_000f)
-                {
-                    Dictionary<DamageType, float> topReferenceDict = TestType == TestType.DpsPerVolume ?
-                        Top6000.DpsPerVolumeDict : Top6000.DpsPerCostDict;
-                    if (referenceDict[DamageType] > topReferenceDict[DamageType])
-                    {
-                        Top6000 = rawShell;
-                    }
-                }
-                else if (rawShell.TotalLength <= 7_000f)
-                {
-                    Dictionary<DamageType, float> topReferenceDict = TestType == TestType.DpsPerVolume ?
-                        Top7000.DpsPerVolumeDict : Top7000.DpsPerCostDict;
-                    if (referenceDict[DamageType] > topReferenceDict[DamageType])
-                    {
-                        Top7000 = rawShell;
-                    }
-                }
-                else if (rawShell.TotalLength <= 8_000f)
-                {
-                    Dictionary<DamageType, float> topReferenceDict = TestType == TestType.DpsPerVolume ?
-                        Top8000.DpsPerVolumeDict : Top8000.DpsPerCostDict;
-                    if (referenceDict[DamageType] > topReferenceDict[DamageType])
-                    {
-                        Top8000 = rawShell;
-                    }
+                    TopDpsShells.Add(topSize.Name, topSize.TopShell);
                 }
             }
         }
@@ -1344,7 +1285,7 @@ namespace ApsCalcUI
                 foreach (KeyValuePair<string, Shell> topShellPair in TopDpsShells)
                 {
                     // Calculate barrel lengths
-                    topShellPair.Value.CalculateRequiredBarrelLengths(MaxInaccuracy);
+                    topShellPair.Value.CalculateRequiredBarrelLengths();
                     if (dtToShow[DamageType.Disruptor]
                         || dtToShow[DamageType.EMP]
                         || dtToShow[DamageType.MD]
@@ -1361,19 +1302,8 @@ namespace ApsCalcUI
                     {
                         if (dtToShow[dt])
                         {
-                            topShellPair.Value.CalculateDamageByType(dt, FragAngleMultiplier);
-                            topShellPair.Value.CalculateDpsByType(
-                                dt,
-                                TargetAC,
-                                TestIntervalSeconds,
-                                StoragePerVolume,
-                                StoragePerCost,
-                                EnginePpm,
-                                EnginePpv,
-                                EnginePpc,
-                                EngineUsesFuel,
-                                TargetArmorScheme,
-                                ImpactAngleFromPerpendicularDegrees);
+                            topShellPair.Value.CalculateDamageByType(dt);
+                            topShellPair.Value.CalculateDpsByType(dt);
                         }
                     }
                     topShellPair.Value.GetModuleCounts();

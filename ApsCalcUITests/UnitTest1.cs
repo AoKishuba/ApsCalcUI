@@ -65,54 +65,52 @@ namespace ApsCalcUITests
                 clipsPerLoader,
                 inputsPerLoader,
                 usesAmmoEjector,
-                gpCasingCount,
                 rgCasingCount,
                 rateOfFireRpm,
                 gunUsesRecoilAbsorbers,
                 isDif
                 )
             {
+                GPCasingCount = gpCasingCount,
                 RailDraw = raildraw,
                 NonSabotAngleMultiplier = nonSabotAngleMultiplier,
-                SabotAngleMultiplier = sabotAngleMultiplier
+                SabotAngleMultiplier = sabotAngleMultiplier,
+                TargetAC = targetAC,
+                TestIntervalSeconds = testIntervalSeconds,
+                StoragePerVolume = storagePerVolume,
+                StoragePerCost = storagePerCost,
+                EnginePpm = ppm,
+                EnginePpv = ppv,
+                EnginePpc = ppc,
+                EngineUsesFuel = engineUsesFuel,
+                TargetArmorScheme = testScheme,
+                ImpactAngleFromPerpendicularDegrees = impactAngle,
+                DesiredInaccuracy = desiredInaccuracy,
+                FragAngleMultiplier = fragAngleMultiplier
             };
             testModuleCounts.CopyTo(testShell.BodyModuleCounts, 0);
             testShell.CalculateLengths();
-            testShell.CalculateRequiredBarrelLengths(desiredInaccuracy);
+            testShell.CalculateRequiredBarrelLengths();
             testShell.CalculateRecoil();
             testShell.CalculateVelocityModifier();
             testShell.CalculateVelocity();
             testShell.CalculateEffectiveRange();
             testShell.CalculateMaxDraw();
-            testShell.CalculateReloadTime(testIntervalSeconds);
+            testShell.CalculateReloadTime();
 
             foreach (DamageType dt in dts)
             {
                 testShell.CalculateDamageModifierByType(dt);
-                testShell.CalculateDamageByType(dt, fragAngleMultiplier);
+                testShell.CalculateDamageByType(dt);
             }
 
             testShell.CalculateCooldownTime();
             testShell.CalculateCoolerVolumeAndCost();
             testShell.CalculateLoaderVolumeAndCost();
-            testShell.CalculateVariableVolumesAndCosts(
-                testIntervalSeconds, 
-                storagePerVolume, 
-                storagePerCost);
+            testShell.CalculateVariableVolumesAndCosts();
             foreach (DamageType dt in dts)
             {
-                testShell.CalculateDpsByType(
-                    dt,
-                    targetAC,
-                    testIntervalSeconds,
-                    storagePerVolume,
-                    storagePerCost,
-                    ppm,
-                    ppv,
-                    ppc,
-                    engineUsesFuel,
-                    testScheme,
-                    impactAngle);
+                testShell.CalculateDpsByType(dt);
             }
             Assert.AreEqual(testShell.OverallVelocityModifier, 1.78024387f);
             Assert.AreEqual(testShell.Velocity, 322.720734f);
@@ -159,54 +157,52 @@ namespace ApsCalcUITests
                 clipsPerLoader,
                 inputsPerLoader,
                 usesAmmoEjector,
-                gpCasingCount,
                 rgCasingCount,
                 rateOfFireRpm,
                 gunUsesRecoilAbsorbers,
                 isDif
                 )
             {
+                GPCasingCount = gpCasingCount,
                 RailDraw = raildraw,
                 NonSabotAngleMultiplier = nonSabotAngleMultiplier,
-                SabotAngleMultiplier = sabotAngleMultiplier
+                SabotAngleMultiplier = sabotAngleMultiplier,
+                TargetAC = targetAC,
+                TestIntervalSeconds = testIntervalSeconds,
+                StoragePerVolume = storagePerVolume,
+                StoragePerCost = storagePerCost,
+                EnginePpm = ppm,
+                EnginePpv = ppv,
+                EnginePpc = ppc,
+                EngineUsesFuel = engineUsesFuel,
+                TargetArmorScheme = testScheme,
+                ImpactAngleFromPerpendicularDegrees = impactAngle,
+                DesiredInaccuracy = desiredInaccuracy,
+                FragAngleMultiplier = fragAngleMultiplier
             };
             testModuleCounts.CopyTo(testShellBelt.BodyModuleCounts, 0);
             testShellBelt.CalculateLengths();
-            testShellBelt.CalculateRequiredBarrelLengths(desiredInaccuracy);
+            testShellBelt.CalculateRequiredBarrelLengths();
             testShellBelt.CalculateRecoil();
             testShellBelt.CalculateVelocityModifier();
             testShellBelt.CalculateVelocity();
             testShellBelt.CalculateEffectiveRange();
             testShellBelt.CalculateMaxDraw();
-            testShellBelt.CalculateReloadTime(testIntervalSeconds);
+            testShellBelt.CalculateReloadTime();
 
             foreach (DamageType dt in dts)
             {
                 testShellBelt.CalculateDamageModifierByType(dt);
-                testShellBelt.CalculateDamageByType(dt, fragAngleMultiplier);
+                testShellBelt.CalculateDamageByType(dt);
             }
 
             testShellBelt.CalculateCooldownTime();
             testShellBelt.CalculateCoolerVolumeAndCost();
             testShellBelt.CalculateLoaderVolumeAndCost();
-            testShellBelt.CalculateVariableVolumesAndCosts(
-                testIntervalSeconds,
-                storagePerVolume,
-                storagePerCost);
+            testShellBelt.CalculateVariableVolumesAndCosts();
             foreach (DamageType dt in dts)
             {
-                testShellBelt.CalculateDpsByType(
-                    dt,
-                    targetAC,
-                    testIntervalSeconds,
-                    storagePerVolume,
-                    storagePerCost,
-                    ppm,
-                    ppv,
-                    ppc,
-                    engineUsesFuel,
-                    testScheme,
-                    impactAngle);
+                testShellBelt.CalculateDpsByType(dt);
             }
             Assert.AreEqual(testShellBelt.OverallVelocityModifier, 1.77499998f);
             Assert.AreEqual(testShellBelt.Velocity, 733.927124f);
@@ -262,16 +258,19 @@ namespace ApsCalcUITests
                 clipsPerLoader,
                 inputsPerLoader,
                 default,
-                gpCasingCount,
                 rgCasingCount,
                 default,
                 default,
-                isDif);
+                isDif)
+            {
+                GPCasingCount = gpCasingCount,
+                TestIntervalSeconds = testIntervalSeconds
+            };
 
             testModuleCounts.CopyTo(testShell.BodyModuleCounts, 0);
             testShell.GaugeMultiplier = MathF.Pow(testShell.Gauge / 500f, 1.8f);
             testShell.CalculateLengths();
-            testShell.CalculateReloadTime(testIntervalSeconds);
+            testShell.CalculateReloadTime();
 
             Assert.AreEqual(testShell.ShellReloadTime, 11.6231985f);
             Assert.AreEqual(testShell.ClusterReloadTime, 3.87439942f);
@@ -290,16 +289,20 @@ namespace ApsCalcUITests
                 clipsPerLoader,
                 inputsPerLoader,
                 default,
-                gpCasingCount,
                 rgCasingCount,
                 default,
                 default,
-                isDif);
+                isDif)
+            {
+                GPCasingCount = gpCasingCount,
+                TestIntervalSeconds = testIntervalSeconds
+            }
+            ;
 
             testModuleCounts.CopyTo(testShellBelt.BodyModuleCounts, 0);
             testShellBelt.GaugeMultiplier = MathF.Pow(testShellBelt.Gauge / 500f, 1.8f);
             testShellBelt.CalculateLengths();
-            testShellBelt.CalculateReloadTime(testIntervalSeconds);
+            testShellBelt.CalculateReloadTime();
 
             Assert.AreEqual(testShellBelt.ShellReloadTime, 2.45784783f);
             Assert.AreEqual(testShellBelt.ClusterReloadTime, 2.45784783f);
@@ -322,6 +325,16 @@ namespace ApsCalcUITests
             float rgCasingCount = 1;
             bool isBelt = false;
             bool isDif = false;
+
+            float targetAC = 1f;
+            float testIntervalSeconds = 600;
+            float storagePerVolume = 500;
+            float storagePerCost = 250;
+            float enginePpm = 600;
+            float enginePpv = 60;
+            float enginePpc = 5;
+            bool engineUsesFuel = false;
+
             Shell testShellAP = new(
                 1,
                 gauge,
@@ -334,20 +347,30 @@ namespace ApsCalcUITests
                 default,
                 default,
                 default,
-                gpCasingCount,
                 rgCasingCount,
                 default,
                 default,
                 isDif)
             {
-                RailDraw = 500
+                GPCasingCount = gpCasingCount,
+                RailDraw = 500,
+                TargetAC = targetAC,
+                TestIntervalSeconds = testIntervalSeconds,
+                StoragePerVolume = storagePerVolume,
+                StoragePerCost = storagePerCost,
+                EnginePpm = enginePpm,
+                EnginePpv = enginePpv,
+                EnginePpc = enginePpc,
+                EngineUsesFuel = engineUsesFuel,
+                TargetArmorScheme = testScheme,
+                FragAngleMultiplier = fragAngleMultiplier
             };
             testModuleCounts.CopyTo(testShellAP.BodyModuleCounts, 0);
             testShellAP.GaugeMultiplier = MathF.Pow(testShellAP.Gauge / 500f, 1.8f);
             testShellAP.CalculateLengths();
             testShellAP.CalculateRecoil();
             testShellAP.CalculateMaxDraw();
-            testShellAP.CalculateReloadTime(600f);
+            testShellAP.CalculateReloadTime();
 
             // AP head
             testShellAP.NonSabotAngleMultiplier = MathF.Abs(MathF.Cos(directHitAngleFromPerpendicularDegrees * MathF.PI / 180));
@@ -355,35 +378,15 @@ namespace ApsCalcUITests
             testShellAP.CalculateVelocityModifier();
             testShellAP.CalculateVelocity();
             testShellAP.CalculateDamageModifierByType(DamageType.Kinetic);
-            testShellAP.CalculateDamageByType(DamageType.Kinetic, fragAngleMultiplier);
-            testShellAP.CalculateDpsByType(
-                DamageType.Kinetic, 
-                1f, 
-                1800, 
-                500, 
-                250, 
-                600, 
-                60, 
-                5, 
-                false, 
-                testScheme, 
-                directHitAngleFromPerpendicularDegrees);
+            testShellAP.CalculateDamageByType(DamageType.Kinetic);
+            testShellAP.ImpactAngleFromPerpendicularDegrees = directHitAngleFromPerpendicularDegrees;
+            testShellAP.CalculateDpsByType(DamageType.Kinetic);
             float nonSabotDirectHit = testShellAP.DamageDict[DamageType.Kinetic];
 
             testShellAP.NonSabotAngleMultiplier = MathF.Abs(MathF.Cos(nonDirectHitAngleFromPerpendicularDegrees * MathF.PI / 180));
             testShellAP.SabotAngleMultiplier = MathF.Abs(MathF.Cos(nonDirectHitAngleFromPerpendicularDegrees * MathF.PI / 240));
-            testShellAP.CalculateDpsByType(
-                DamageType.Kinetic, 
-                1f, 
-                1800, 
-                500, 
-                250, 
-                600, 
-                60, 
-                5, 
-                false, 
-                testScheme, 
-                nonDirectHitAngleFromPerpendicularDegrees);
+            testShellAP.ImpactAngleFromPerpendicularDegrees = nonDirectHitAngleFromPerpendicularDegrees;
+            testShellAP.CalculateDpsByType(DamageType.Kinetic);
             float nonSabotNonDirectHit = testShellAP.DamageDict[DamageType.Kinetic];
             Assert.AreEqual(nonSabotDirectHit, testShellAP.RawKD);
             Assert.AreEqual(nonSabotDirectHit, 10413.1367f);
@@ -403,55 +406,45 @@ namespace ApsCalcUITests
                 default,
                 default,
                 default,
-                gpCasingCount,
                 rgCasingCount,
                 default,
                 default,
                 isDif)
             {
-                RailDraw = 500
+                GPCasingCount = gpCasingCount,
+                RailDraw = 500,
+                TargetAC = targetAC,
+                TestIntervalSeconds = testIntervalSeconds,
+                StoragePerVolume = storagePerVolume,
+                StoragePerCost = storagePerCost,
+                EnginePpm = enginePpm,
+                EnginePpv = enginePpv,
+                EnginePpc = enginePpc,
+                EngineUsesFuel = engineUsesFuel,
+                TargetArmorScheme = testScheme,
+                FragAngleMultiplier = fragAngleMultiplier
             };
             testModuleCounts.CopyTo(testShellSabot.BodyModuleCounts, 0);
             testShellSabot.GaugeMultiplier = MathF.Pow(testShellSabot.Gauge / 500f, 1.8f);
             testShellSabot.CalculateLengths();
             testShellSabot.CalculateRecoil();
             testShellSabot.CalculateMaxDraw();
-            testShellSabot.CalculateReloadTime(600f);
+            testShellSabot.CalculateReloadTime();
 
             testShellSabot.NonSabotAngleMultiplier = MathF.Abs(MathF.Cos(directHitAngleFromPerpendicularDegrees * MathF.PI / 180));
             testShellSabot.SabotAngleMultiplier = MathF.Abs(MathF.Cos(directHitAngleFromPerpendicularDegrees * MathF.PI / 240));
             testShellSabot.CalculateVelocityModifier();
             testShellSabot.CalculateVelocity();
             testShellSabot.CalculateDamageModifierByType(DamageType.Kinetic);
-            testShellSabot.CalculateDamageByType(DamageType.Kinetic, fragAngleMultiplier);
-            testShellSabot.CalculateDpsByType(
-                DamageType.Kinetic,
-                1f,
-                1800,
-                500,
-                250,
-                600,
-                60,
-                5,
-                false,
-                testScheme,
-                directHitAngleFromPerpendicularDegrees);
+            testShellSabot.CalculateDamageByType(DamageType.Kinetic);
+            testShellSabot.ImpactAngleFromPerpendicularDegrees = directHitAngleFromPerpendicularDegrees;
+            testShellSabot.CalculateDpsByType(DamageType.Kinetic);
             float sabotDirectHit = testShellSabot.DamageDict[DamageType.Kinetic];
 
             testShellSabot.NonSabotAngleMultiplier = MathF.Abs(MathF.Cos(nonDirectHitAngleFromPerpendicularDegrees * MathF.PI / 180));
             testShellSabot.SabotAngleMultiplier = MathF.Abs(MathF.Cos(nonDirectHitAngleFromPerpendicularDegrees * MathF.PI / 240));
-            testShellSabot.CalculateDpsByType(
-                DamageType.Kinetic,
-                1f,
-                1800,
-                500,
-                250,
-                600,
-                60,
-                5,
-                false,
-                testScheme,
-                nonDirectHitAngleFromPerpendicularDegrees);
+            testShellSabot.ImpactAngleFromPerpendicularDegrees = nonDirectHitAngleFromPerpendicularDegrees;
+            testShellSabot.CalculateDpsByType(DamageType.Kinetic);
             float sabotNonDirectHit = testShellSabot.DamageDict[DamageType.Kinetic];
             Assert.AreEqual(sabotDirectHit, testShellSabot.RawKD);
             Assert.AreEqual(sabotDirectHit, 8851.16602f);
@@ -471,55 +464,45 @@ namespace ApsCalcUITests
                 default,
                 default,
                 default,
-                gpCasingCount,
                 rgCasingCount,
                 default,
                 default,
                 isDif)
             {
-                RailDraw = 500
+                GPCasingCount = gpCasingCount,
+                RailDraw = 500,
+                TargetAC = targetAC,
+                TestIntervalSeconds = testIntervalSeconds,
+                StoragePerVolume = storagePerVolume,
+                StoragePerCost = storagePerCost,
+                EnginePpm = enginePpm,
+                EnginePpv = enginePpv,
+                EnginePpc = enginePpc,
+                EngineUsesFuel = engineUsesFuel,
+                TargetArmorScheme =  testScheme,
+                FragAngleMultiplier = fragAngleMultiplier
             };
             testModuleCounts.CopyTo(testShellHollowPoint.BodyModuleCounts, 0);
             testShellHollowPoint.GaugeMultiplier = MathF.Pow(testShellHollowPoint.Gauge / 500f, 1.8f);
             testShellHollowPoint.CalculateLengths();
             testShellHollowPoint.CalculateRecoil();
             testShellHollowPoint.CalculateMaxDraw();
-            testShellHollowPoint.CalculateReloadTime(600f);
+            testShellHollowPoint.CalculateReloadTime();
 
             testShellHollowPoint.NonSabotAngleMultiplier = MathF.Abs(MathF.Cos(directHitAngleFromPerpendicularDegrees * MathF.PI / 180));
             testShellHollowPoint.SabotAngleMultiplier = MathF.Abs(MathF.Cos(directHitAngleFromPerpendicularDegrees * MathF.PI / 240));
             testShellHollowPoint.CalculateVelocityModifier();
             testShellHollowPoint.CalculateVelocity();
             testShellHollowPoint.CalculateDamageModifierByType(DamageType.Kinetic);
-            testShellHollowPoint.CalculateDamageByType(DamageType.Kinetic, fragAngleMultiplier);
-            testShellHollowPoint.CalculateDpsByType(
-                DamageType.Kinetic,
-                1f,
-                1800,
-                500,
-                250,
-                600,
-                60,
-                5,
-                false,
-                testScheme,
-                directHitAngleFromPerpendicularDegrees);
+            testShellHollowPoint.CalculateDamageByType(DamageType.Kinetic);
+            testShellHollowPoint.ImpactAngleFromPerpendicularDegrees = directHitAngleFromPerpendicularDegrees;
+            testShellHollowPoint.CalculateDpsByType(DamageType.Kinetic);
             float hollowPointDirectHit = testShellHollowPoint.DamageDict[DamageType.Kinetic];
 
             testShellHollowPoint.NonSabotAngleMultiplier = MathF.Abs(MathF.Cos(nonDirectHitAngleFromPerpendicularDegrees * MathF.PI / 180));
             testShellHollowPoint.SabotAngleMultiplier = MathF.Abs(MathF.Cos(nonDirectHitAngleFromPerpendicularDegrees * MathF.PI / 240));
-            testShellHollowPoint.CalculateDpsByType(
-                DamageType.Kinetic,
-                1f,
-                1800,
-                500,
-                250,
-                600,
-                60,
-                5,
-                false,
-                testScheme,
-                nonDirectHitAngleFromPerpendicularDegrees);
+            testShellHollowPoint.ImpactAngleFromPerpendicularDegrees = nonDirectHitAngleFromPerpendicularDegrees;
+            testShellHollowPoint.CalculateDpsByType(DamageType.Kinetic);
             float hollowPointNonDirectHit = testShellHollowPoint.DamageDict[DamageType.Kinetic];
             Assert.AreEqual(hollowPointDirectHit, testShellHollowPoint.RawKD);
             Assert.AreEqual(hollowPointDirectHit, 9489.92285f);
@@ -550,33 +533,39 @@ namespace ApsCalcUITests
                 default,
                 default,
                 default,
-                default,
                 isDif
-                );
+                )
+            {
+                DesiredInaccuracy = 0.3f
+            };
             testModuleCounts.CopyTo(testShell.BodyModuleCounts, 0);
 
             testShell.GaugeMultiplier = MathF.Pow(testShell.Gauge / 500f, 1.8f);
 
             testShell.CalculateLengths();
-            testShell.CalculateMaxProjectileLengthForInaccuracy(5.5f, 0.3f);
+            testShell.MaxBarrelLengthInM = 5.5f;
+            testShell.CalculateMaxProjectileLengthForInaccuracy();
             Assert.AreEqual(testShell.OverallInaccuracyModifier, 0.810000062f);
 
             testShell.Gauge = 300;
             testShell.GaugeMultiplier = MathF.Pow(testShell.Gauge / 500f, 1.8f);
             testShell.CalculateLengths();
-            testShell.CalculateMaxProjectileLengthForInaccuracy(16.5f, 0.3f);
+            testShell.MaxBarrelLengthInM = 16.5f;
+            testShell.CalculateMaxProjectileLengthForInaccuracy();
             Assert.AreEqual(testShell.OverallInaccuracyModifier, 0.810000062f);
 
             testShell.Gauge = 400;
             testShell.GaugeMultiplier = MathF.Pow(testShell.Gauge / 500f, 1.8f);
             testShell.CalculateLengths();
-            testShell.CalculateMaxProjectileLengthForInaccuracy(22, 0.3f);
+            testShell.MaxBarrelLengthInM = 22f;
+            testShell.CalculateMaxProjectileLengthForInaccuracy();
             Assert.AreEqual(testShell.OverallInaccuracyModifier, 0.944999993f);
 
             testShell.Gauge = 500;
             testShell.GaugeMultiplier = MathF.Pow(testShell.Gauge / 500f, 1.8f);
             testShell.CalculateLengths();
-            testShell.CalculateMaxProjectileLengthForInaccuracy(27.5f, 0.3f);
+            testShell.MaxBarrelLengthInM = 27.5f;
+            testShell.CalculateMaxProjectileLengthForInaccuracy();
             Assert.AreEqual(testShell.OverallInaccuracyModifier, 1.02600002f);
         }
 
@@ -603,17 +592,20 @@ namespace ApsCalcUITests
                 default,
                 default,
                 default,
-                default,
                 isDif
-                );
+                )
+            {
+                MaxBarrelLengthInM = 21.56f,
+                DesiredInaccuracy = 0.2f
+            };
             testModuleCounts.CopyTo(testShell.BodyModuleCounts, 0);
 
             testShell.GaugeMultiplier = MathF.Pow(testShell.Gauge / 500f, 1.8f);
 
             testShell.CalculateLengths();
-            testShell.CalculateMaxProjectileLengthForInaccuracy(21.56f, 0.2f);
+            float maxProjectileLength = testShell.CalculateMaxProjectileLengthForInaccuracy();
             Assert.AreEqual(testShell.OverallInaccuracyModifier, 1.35f);
-            Assert.AreEqual(testShell.CalculateMaxProjectileLengthForInaccuracy(21.56f, 0.2f), 899.569763f);
+            Assert.AreEqual(maxProjectileLength, 899.569763f);
         }
     }
 }
