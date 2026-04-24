@@ -615,6 +615,11 @@ namespace ApsCalcUI
                 error = true;
                 QueueErrorProvider.SetError(AddParametersButton, "Increase max gunpowder or rail draw allowance, or else set min velocity to 0");
             }
+            else if (((DamageTypeItem)DamageTypeDD.SelectedItem).ID == DamageType.Kinetic && MaxDrawUD.Value == 0 && MaxGPUD.Value == 0)
+            {
+                error = true;
+                QueueErrorProvider.SetError(AddParametersButton, "Increase max gunpowder or rail draw allowance, or else choose a different damage type");
+            }
             else if (PendepthCB.Checked && ArmorLayerLB.Items.Count == 0)
             {
                 error = true;
