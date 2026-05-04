@@ -480,7 +480,7 @@ namespace ApsCalcUI
         /// </summary>
         public void CalculateMaxDraw()
         {
-            MaxDrawCasing = 12500f * 1.25f * RGCasingCount;
+            MaxDrawCasing = GaugeMultiplier * 12500f * 1.25f * RGCasingCount;
             MaxDrawShell = MaxDrawCasing + 12500f * GaugeMultiplier * EffectiveProjectileModuleCount;
         }
 

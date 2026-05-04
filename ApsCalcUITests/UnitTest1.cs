@@ -25,7 +25,7 @@ namespace ApsCalcUITests
             int inputsPerLoader = 1;
             bool usesAmmoEjector = false;
             float gpCasingCount = 1.5f;
-            float rgCasingCount = 1f;
+            float rgCasingCount = 0.5f;
             float rateOfFireRpm = 100f;
             bool gunUsesRecoilAbsorbers = true;
             bool isDif = false;
@@ -118,14 +118,15 @@ namespace ApsCalcUITests
             Assert.AreEqual(testShell.Velocity, 322.720734f);
             Assert.AreEqual(testShell.EffectiveRange, 62163.2344f);
             Assert.AreEqual(testShell.TotalRecoil, 4116.08154f);
-            Assert.AreEqual(testShell.MaxDrawShell, 139108.453f);
+            Assert.AreEqual(testShell.FeltRecoil, 3916.08154f);
+            Assert.AreEqual(testShell.MaxDrawShell, 140615.141f);
             Assert.AreEqual(testShell.OverallInaccuracyModifier, 1.28414631f);
             Assert.AreEqual(testShell.BarrelLengthForInaccuracy, 26.5151558f);
             Assert.AreEqual(testShell.BarrelLengthForPropellant, 2.22906041f);
-            Assert.AreEqual(testShell.TotalLength, 6635f);
+            Assert.AreEqual(testShell.TotalLength, 6390.0f);
             Assert.AreEqual(testShell.ProjectileLength, 5410f);
-            Assert.AreEqual(testShell.CostPerShell, 56.2460594f);
-            Assert.AreEqual(testShell.ShellReloadTime, 232.717392f);
+            Assert.AreEqual(testShell.CostPerShell, 55.4023018f);
+            Assert.AreEqual(testShell.ShellReloadTime, 230.588745f);
             Assert.AreEqual(testShell.CooldownTime, 36.7981911f);
             Assert.AreEqual(testShell.OverallKineticDamageModifier, 0.98008132f);
             Assert.AreEqual(testShell.RawKD, 12429.71f);
@@ -212,14 +213,13 @@ namespace ApsCalcUITests
             Assert.AreEqual(testShellBelt.Velocity, 733.927124f);
             Assert.AreEqual(testShellBelt.EffectiveRange, 22589.1758f);
             Assert.AreEqual(testShellBelt.TotalRecoil, 561.59021f);
-            Assert.AreEqual(testShellBelt.MaxDrawShell, 3592.76147f);
+            Assert.AreEqual(testShellBelt.MaxDrawShell, 3618.42432f);
             Assert.AreEqual(testShellBelt.OverallInaccuracyModifier, 1.28250003f);
             Assert.AreEqual(testShellBelt.BarrelLengthForInaccuracy, 6.69449425f);
             Assert.AreEqual(testShellBelt.BarrelLengthForPropellant, 0.642210722f);
-            Assert.AreEqual(testShellBelt.TotalLength, 994.5f);
+            Assert.AreEqual(testShellBelt.TotalLength, 969.0f);
             Assert.AreEqual(testShellBelt.ProjectileLength, 867);
-            Assert.AreEqual(testShellBelt.CostPerShell, 1.44736958f);
-            Assert.AreEqual(testShellBelt.ShellReloadTime, 3.09688997f);
+            Assert.AreEqual(testShellBelt.CostPerShell, 1.43299854f);
             Assert.AreEqual(testShellBelt.CooldownTime, 1.73492801f);
             Assert.AreEqual(testShellBelt.OverallKineticDamageModifier, 0.987500012f);
             Assert.AreEqual(testShellBelt.RawKD, 948.009338f);
@@ -522,7 +522,7 @@ namespace ApsCalcUITests
                 nonDirectHitAngleFromPerpendicularDegrees);
             float hollowPointNonDirectHit = testShellHollowPoint.DamageDict[DamageType.Kinetic];
             Assert.AreEqual(hollowPointDirectHit, testShellHollowPoint.RawKD);
-            Assert.AreEqual(hollowPointDirectHit, 9489.92285f);
+            Assert.AreEqual(hollowPointDirectHit, 10381.6289f);
             Assert.AreEqual(hollowPointNonDirectHit, hollowPointDirectHit);
         }
 
