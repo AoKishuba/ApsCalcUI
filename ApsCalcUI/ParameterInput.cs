@@ -330,11 +330,6 @@ namespace ApsCalcUI
         private void MaxGPUD_ValueChanged(object sender, EventArgs e)
         {
             UpdateModuleCounts();
-            bool showIncrement = MaxGPUD.Value > 0;
-            GPIncrementLabel.Visible = showIncrement;
-            GPIncrementLabel.Enabled = showIncrement;
-            GPIncrementUD.Visible = showIncrement;
-            GPIncrementUD.Enabled = showIncrement;
         }
 
         private void MaxRGUD_ValueChanged(object sender, EventArgs e)
@@ -788,7 +783,7 @@ namespace ApsCalcUI
                 testParameters.UsesAmmoEjector = AmmoEjectorCB.Checked;
 
                 testParameters.MaxGPCasingCount = (float)MaxGPUD.Value;
-                testParameters.GPIncrement = (float)GPIncrementUD.Value;
+                testParameters.CasingIncrement = (float)CasingIncrementUD.Value;
                 testParameters.MaxRGCasingCount = (float)MaxRGUD.Value;
                 testParameters.MinLength = (float)MinLengthUD.Value;
                 testParameters.MaxLength = (float)MaxLengthUD.Value;
@@ -957,7 +952,7 @@ namespace ApsCalcUI
                                 testParameters.BeltfedInputsPerLoader,
                                 testParameters.UsesAmmoEjector,
                                 testParameters.MaxGPCasingCount,
-                                testParameters.GPIncrement,
+                                testParameters.CasingIncrement,
                                 testParameters.MaxRGCasingCount,
                                 testParameters.MinLength,
                                 testParameters.MaxLength,
@@ -1019,7 +1014,7 @@ namespace ApsCalcUI
                                 testParameters.BeltfedInputsPerLoader,
                                 testParameters.UsesAmmoEjector,
                                 testParameters.MaxGPCasingCount,
-                                testParameters.GPIncrement,
+                                testParameters.CasingIncrement,
                                 testParameters.MaxRGCasingCount,
                                 testParameters.MinLength,
                                 testParameters.MaxLength,

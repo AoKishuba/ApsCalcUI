@@ -64,7 +64,7 @@ namespace ApsCalcUI
         /// <param name="beltfedInputsPerLoader">Inputs per beltfed loader/clip cluster</param>
         /// <param name="usesAmmoEjector">Whether loader cluster uses ammo ejector</param>
         /// <param name="maxGPInput">Max desired number of gunpowder casings</param>
-        /// <param name="gpIncrement">Amount of GP added between tests</param>
+        /// <param name="casingIncrement">Amount of GP and/or RG casing added between tests</param>
         /// <param name="maxRGInput">Max desired number of railgun casings</param>
         /// <param name="minShellLengthInput">Min desired shell length in mm, exclusive</param>
         /// <param name="maxShellLengthInput">Max desired shell length in mm, inclusive</param>
@@ -114,7 +114,7 @@ namespace ApsCalcUI
             int beltfedInputsPerLoader,
             bool usesAmmoEjector,
             float maxGPInput,
-            float gpIncrement,
+            float casingIncrement,
             float maxRGInput,
             float minShellLengthInput,
             float maxShellLengthInput,
@@ -165,7 +165,7 @@ namespace ApsCalcUI
             BeltfedInputsPerLoader = beltfedInputsPerLoader;
             UsesAmmoEjector = usesAmmoEjector;
             MaxGPInput = maxGPInput;
-            GPIncrement = gpIncrement;
+            CasingIncrement = casingIncrement;
             MaxRGInput = maxRGInput;
             MinShellLength = minShellLengthInput;
             MaxShellLength = maxShellLengthInput;
@@ -235,7 +235,7 @@ namespace ApsCalcUI
         public bool UsesAmmoEjector { get; }
         public float MaxGPInput { get; }
         public float MaxGP { get; }
-        public float GPIncrement { get; }
+        public float CasingIncrement { get; }
         public float MaxRGInput { get; }
         public float MinShellLength { get; }
         public float MaxShellLength { get; }
@@ -305,10 +305,10 @@ namespace ApsCalcUI
             float gpMax = MathF.Min(MaxGP, maxModuleCount);
             for (int headIndex = 0; headIndex < HeadList.Count; headIndex++)
             {
-                for (float gpCount = 0; gpCount <= gpMax; gpCount += MathF.Min(GPIncrement, gpMax - gpCount + 0.01f))
+                for (float gpCount = 0; gpCount <= gpMax; gpCount += MathF.Min(CasingIncrement, gpMax - gpCount + 0.01f))
                 {
                     float rgMax = MathF.Min(MaxRGInput, MathF.Floor(maxModuleCount - gpCount));
-                    for (float rgCount = 0; rgCount <= rgMax; rgCount++)
+                    for (float rgCount = 0; rgCount <= rgMax; rgCount += MathF.Min(CasingIncrement, rgMax - rgCount + 0.01f))
                     {
                         float var0Max = maxModuleCount - gpCount - rgCount;
                         for (float var0Count = 0; var0Count <= var0Max; var0Count++)
@@ -670,11 +670,19 @@ namespace ApsCalcUI
                     shellUnderTesting.CalculateVelocityModifier();
                     shellUnderTesting.CalculateMaxDraw();
                     
-                    float maxDraw = MathF.Min(shellUnderTesting.MaxDraw, MaxDrawInput);
-                    maxDraw = MathF.Min(maxDraw, MaxRecoilInput - shellUnderTesting.GPRecoil);
+                    // Physical draw limit
+                    float maxDraw = MathF.Min(shellUnderTesting.MaxDrawShell, MaxDrawInput);
+                    // Limit by recoil. Projectile draw is 1 : 1 with recoil; draw applied to RG casings is 0.6 : 1
+                    float maxRailRecoil = MaxRecoilInput - shellUnderTesting.GPRecoil;
+                    float maxCasingDrawForRecoil = MathF.Min(maxRailRecoil / 0.6f, shellUnderTesting.MaxDrawCasing);
+                    float maxCasingRecoil = maxCasingDrawForRecoil * 0.6f;
+                    float maxProjectileDrawForRecoil = maxRailRecoil - maxCasingRecoil;
+                    float maxDrawForRecoil = maxCasingDrawForRecoil + maxProjectileDrawForRecoil;
+                    maxDraw = MathF.Min(maxDraw, maxDrawForRecoil);
+                    // Limit by inaccuracy
                     if (!shellUnderTesting.GunUsesRecoilAbsorbers)
                     {
-                        maxDraw = MathF.Min(maxDraw, shellUnderTesting.CalculateMaxDrawForInaccuracy(MaxBarrelLengthInM, MaxInaccuracy));
+                        maxDraw = MathF.Min(maxDraw, shellUnderTesting.CalculateMaxDrawForInaccuracy(MaxBarrelLengthInM, MaxInaccuracy, shellUnderTesting.MaxDrawCasing));
                     }
                     float minDraw = shellUnderTesting.CalculateMinDrawForVelocityandRange(MinVelocityInput, MinEffectiveRangeInput);
 
@@ -1231,9 +1239,9 @@ namespace ApsCalcUI
             writer.WriteLine("Inputs per loader (beltfed)" + ColumnDelimiter + BeltfedInputsPerLoader);
 
             writer.WriteLine("Max GP casings" + ColumnDelimiter + MaxGPInput);
-            if (MaxGPInput > 0)
+            if (MaxGPInput > 0 || MaxRGInput > 0)
             {
-                writer.WriteLine("GP Increment" + ColumnDelimiter + GPIncrement);
+                writer.WriteLine("Casing Increment" + ColumnDelimiter + CasingIncrement);
             }
             writer.WriteLine("Max RG casings" + ColumnDelimiter + MaxRGInput);
             writer.WriteLine("Max draw" + ColumnDelimiter + MaxDrawInput);
@@ -1463,7 +1471,7 @@ namespace ApsCalcUI
                     ];
                     foreach (Shell topShell in TopDpsShells.Values)
                     {
-                        AddValueToList(rgCasingList, topShell.RGCasingCount, 0);
+                        AddValueToList(rgCasingList, topShell.RGCasingCount, 2);
                     }
                     writer.WriteLine(string.Join(ColumnDelimiter, rgCasingList));
                 }
@@ -1531,19 +1539,30 @@ namespace ApsCalcUI
 
                 writer.WriteLine();
                 writer.WriteLine("Shell Stats");
-                // Recoil = draw if no GP
-                if (showGP)
+                List<string> totalRecoilList =
+                [
+                    "Total Recoil"
+                ];
+                foreach (Shell topShell in TopDpsShells.Values)
                 {
-                    List<string> recoilList =
+                    AddValueToList(totalRecoilList, topShell.TotalRecoil, 0);
+                }
+                writer.WriteLine(string.Join(ColumnDelimiter, totalRecoilList));
+
+                // RG casings enjoy a reduction in felt recoil from rail draw
+                if (MaxRGInput > 0)
+                {
+                    List<string> feltRecoilList =
                     [
-                        "Recoil"
+                        "Felt Recoil"
                     ];
                     foreach (Shell topShell in TopDpsShells.Values)
                     {
-                        AddValueToList(recoilList, topShell.TotalRecoil, 0);
+                        AddValueToList(feltRecoilList, topShell.FeltRecoil, 0);
                     }
-                    writer.WriteLine(string.Join(ColumnDelimiter, recoilList));
+                    writer.WriteLine(string.Join(ColumnDelimiter, feltRecoilList));
                 }
+
 
                 List<string> velocityModifierList =
                 [

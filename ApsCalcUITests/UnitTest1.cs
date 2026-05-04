@@ -118,7 +118,7 @@ namespace ApsCalcUITests
             Assert.AreEqual(testShell.Velocity, 322.720734f);
             Assert.AreEqual(testShell.EffectiveRange, 62163.2344f);
             Assert.AreEqual(testShell.TotalRecoil, 4116.08154f);
-            Assert.AreEqual(testShell.MaxDraw, 139108.453f);
+            Assert.AreEqual(testShell.MaxDrawShell, 139108.453f);
             Assert.AreEqual(testShell.OverallInaccuracyModifier, 1.28414631f);
             Assert.AreEqual(testShell.BarrelLengthForInaccuracy, 26.5151558f);
             Assert.AreEqual(testShell.BarrelLengthForPropellant, 2.22906041f);
@@ -212,7 +212,7 @@ namespace ApsCalcUITests
             Assert.AreEqual(testShellBelt.Velocity, 733.927124f);
             Assert.AreEqual(testShellBelt.EffectiveRange, 22589.1758f);
             Assert.AreEqual(testShellBelt.TotalRecoil, 561.59021f);
-            Assert.AreEqual(testShellBelt.MaxDraw, 3592.76147f);
+            Assert.AreEqual(testShellBelt.MaxDrawShell, 3592.76147f);
             Assert.AreEqual(testShellBelt.OverallInaccuracyModifier, 1.28250003f);
             Assert.AreEqual(testShellBelt.BarrelLengthForInaccuracy, 6.69449425f);
             Assert.AreEqual(testShellBelt.BarrelLengthForPropellant, 0.642210722f);

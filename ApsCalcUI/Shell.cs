@@ -72,8 +72,10 @@ namespace ApsCalcUI
 
         // Power
         public float GPRecoil { get; set; }
-        public float MaxDraw { get; set; }
+        public float MaxDrawCasing { get; set; }
+        public float MaxDrawShell { get; set; }
         public float RailDraw { get; set; }
+        public float FeltRecoil { get; set; }
         public float TotalRecoil { get; set; }
         public bool GunUsesRecoilAbsorbers { get; set; } = gunUsesRecoilAbsorbers;
         public float Velocity { get; set; }
@@ -425,15 +427,23 @@ namespace ApsCalcUI
         /// <summary>
         /// Calculates max allowed rail draw for given inaccuracy (only affects guns without recoil absorbers)
         /// </summary>
-        public float CalculateMaxDrawForInaccuracy(float maxBarrelLengthInM, float desiredInaccuracy)
+        /// <param name="maxBarrelLengthInM">Max allowed barrel length for inaccuracy</param>
+        /// <param name="desiredInaccuracy">Desired inaccuracy value, in degrees</param>
+        /// <param name="maxDrawCasing">Physical rail draw capacity of railgun casings on current shell</param>
+        public float CalculateMaxDrawForInaccuracy(float maxBarrelLengthInM, float desiredInaccuracy, float maxDrawCasing)
         {
-            float maxDraw = 
+            float maxRailRecoilForInaccuracy = 
                 (MathF.Pow(
                     MathF.Pow(ProjectileLength / 1000f, 3f / 4f) / maxBarrelLengthInM * 4f, 1f / 2.5f)
                 / 0.3f * desiredInaccuracy / OverallInaccuracyModifier - 1f)
                 / 0.6f * 12500f * GaugeMultiplier - GPRecoil;
 
-            return maxDraw;
+            float maxCasingDrawForInaccuracy = MathF.Min(maxRailRecoilForInaccuracy / 0.6f, maxDrawCasing);
+            float maxCasingRecoilForInaccuracy = maxCasingDrawForInaccuracy * 0.6f;
+            float maxProjectileDrawForInaccuracy = maxRailRecoilForInaccuracy - maxCasingRecoilForInaccuracy;
+            float maxDrawForInaccuracy = maxProjectileDrawForInaccuracy + maxCasingDrawForInaccuracy;
+
+            return maxDrawForInaccuracy;
         }
 
 
@@ -470,7 +480,8 @@ namespace ApsCalcUI
         /// </summary>
         public void CalculateMaxDraw()
         {
-            MaxDraw = 12500f * GaugeMultiplier * (EffectiveProjectileModuleCount + (0.5f * RGCasingCount));
+            MaxDrawCasing = 12500f * 1.25f * RGCasingCount;
+            MaxDrawShell = MaxDrawCasing + 12500f * GaugeMultiplier * EffectiveProjectileModuleCount;
         }
 
 
@@ -480,6 +491,7 @@ namespace ApsCalcUI
         public void CalculateRecoil()
         {
             GPRecoil = GaugeMultiplier * GPCasingCount * 2500f;
+            FeltRecoil = GPRecoil + 0.6f * MathF.Min(RailDraw, MaxDrawCasing) + MathF.Max(RailDraw - MaxDrawCasing, 0);
             TotalRecoil = GPRecoil + RailDraw;
         }
 
@@ -1251,8 +1263,8 @@ namespace ApsCalcUI
         {
             if (GunUsesRecoilAbsorbers)
             {
-                RecoilVolume = TotalRecoil / (ClusterReloadTime * 120f); // Absorbers absorb 120 per second per metre
-                RecoilCost = RecoilVolume * 80f; // Absorbers cost 80 per metre
+                RecoilVolume = FeltRecoil / (ClusterReloadTime * 120f); // Absorber capacity per second per metre
+                RecoilCost = RecoilVolume * 80f; // Absorber cost per metre
             }
         }
 
@@ -1294,8 +1306,8 @@ namespace ApsCalcUI
             if (RailDraw > 0)
             {
                 float drawPerSecond = RailDraw / ClusterReloadTime;
-                ChargerVolume = drawPerSecond / 200f; // Chargers provide 200 Energy per second
-                ChargerCost = ChargerVolume * 400f; // Chargers cost 400 per metre
+                ChargerVolume = drawPerSecond / 280f; // Charger Energy per second
+                ChargerCost = ChargerVolume * 560f; // Charger cost per metre
 
                 // Volume and cost of engine
                 EngineVolume = drawPerSecond / ppv;
@@ -1348,7 +1360,7 @@ namespace ApsCalcUI
         public void CalculateVariableVolumesAndCosts(float testIntervalSeconds, float storagePerVolume, float storagePerCost)
         {
             // Calculate cost of shell itself
-            CostPerShell = (EffectiveProjectileModuleCount + (GPCasingCount + RGCasingCount) / 4)
+            CostPerShell = (EffectiveProjectileModuleCount + GPCasingCount * 0.25f + RGCasingCount * 0.15f)
                 * 5f
                 * GaugeMultiplier;
 

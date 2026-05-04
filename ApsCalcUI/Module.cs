@@ -62,7 +62,7 @@ namespace ApsCalcUI
         public static Module APHead { get; } = new Module("AP head", 1.6f, 1.0f, 1.65f, 1.0f, 1.0f, 1000f, Position.Head, false);
         public static Module SabotHead { get; } = new Module("Sabot head", 1.6f, 0.85f, 2.5f, 0.25f, 1.0f, 1000f, Position.Head, false);
         public static Module HeavyHead { get; } = new Module("Heavy head", 1.45f, 1.75f, 1.0f, 1.0f, 1.0f, 1000f, Position.Head, false);
-        public static Module HollowPoint { get; } = new Module("Hollow point head", 1.45f, 1.0f, 1.2f, 1.0f, 1.0f, 1000f, Position.Head, false);
+        public static Module HollowPoint { get; } = new Module("Hollow point head", 1.6f, 1.0f, 1.2f, 1.0f, 1.0f, 1000f, Position.Head, false);
         public static Module SkimmerTip { get; } = new Module("Skimmer tip", 1.6f, 1.0f, 1.4f, 1.0f, 1.0f, 1000f, Position.Head, false);
         public static Module Disruptor { get; } = new Module("Disruptor conduit", 1.6f, 1.0f, 1.0f, 1.0f, 1.0f, 1000f, Position.Head, false);
         public static Module IncendiaryHead { get; } = new("Incendiary head", 1.45f, 1.2f, 0.8f, 1.0f, 1.0f, 1000f, Position.Head, false);
