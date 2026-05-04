@@ -839,8 +839,12 @@ namespace ApsCalcUI
                     {
                         targetACList.Add(ac.ID);
                     }
-                    testParameters.TargetACList = targetACList;
                 }
+                else
+                {
+                    targetACList.Add(0); // at least one AC value is needed for testing (see RunButton_Click)
+                }
+                testParameters.TargetACList = targetACList;
 
                 testParameters.MinDisruptor = (float)(DisruptorUD.Value / 100m);
 
@@ -933,138 +937,11 @@ namespace ApsCalcUI
 
                 foreach (TestParameters testParameters in parameterList)
                 {
-                    if (testParameters.DamageType == DamageType.Kinetic)
-                    {
-                        foreach (float ac in testParameters.TargetACList)
-                        {
-                            ConcurrentBag<Shell> shellBag = [];
-                            Parallel.For(testParameters.MinGauge, testParameters.MaxGauge + 1, gauge =>
-                            {
-                                ShellCalc calcLocal = new(
-                                    testParameters.BarrelCount,
-                                    gauge,
-                                    MathF.Pow(gauge / 500f, 1.8f),
-                                    testParameters.HeadIndices,
-                                    testParameters.BaseModule,
-                                    testParameters.FixedModulecounts,
-                                    testParameters.MinModulecount,
-                                    testParameters.VariableModuleIndices,
-                                    testParameters.RegularClipsPerLoader,
-                                    testParameters.RegularInputsPerLoader,
-                                    testParameters.BeltfedClipsPerLoader,
-                                    testParameters.BeltfedInputsPerLoader,
-                                    testParameters.UsesAmmoEjector,
-                                    testParameters.MaxGPCasingCount,
-                                    testParameters.GPIncrement,
-                                    testParameters.MaxRGCasingCount,
-                                    testParameters.MinLength,
-                                    testParameters.MaxLength,
-                                    testParameters.MaxDraw,
-                                    testParameters.MaxRecoil,
-                                    testParameters.MinVelocity,
-                                    testParameters.MinEffectiverange,
-                                    testParameters.ImpactAngle,
-                                    testParameters.SabotAngleMultiplier,
-                                    testParameters.NonSabotAngleMultiplier,
-                                    ac,
-                                    testParameters.DamageType,
-                                    testParameters.FragConeAngle,
-                                    testParameters.FragAngleMultiplier,
-                                    testParameters.MinDisruptor,
-                                    testParameters.ArmorScheme,
-                                    testParameters.TestType,
-                                    testParameters.TestInterval,
-                                    testParameters.StoragePerVolume,
-                                    testParameters.StoragePerCost,
-                                    testParameters.EnginePpm,
-                                    testParameters.EnginePpv,
-                                    testParameters.EnginePpc,
-                                    testParameters.EngineUsesFuel,
-                                    testParameters.FiringPieceIsDif,
-                                    testParameters.GunUsesRecoilAbsorbers,
-                                    testParameters.MaxInaccuracy,
-                                    testParameters.RateOfFireRpm,
-                                    testParameters.LimitBarrelLength,
-                                    testParameters.MaxBarrelLength,
-                                    testParameters.BarrelLengthLimitType,
-                                    testParameters.VerboseOutputIsChecked,
-                                    testParameters.RawNumberOutputIsChecked,
-                                    testParameters.ColumnDelimiter
-                                    );
-
-
-                                calcLocal.ShellTest();
-                                calcLocal.AddTopShellsToLocalList();
-
-                                foreach (Shell topShellLocal in calcLocal.TopShellsLocal)
-                                {
-                                    shellBag.Add(topShellLocal);
-                                }
-                            });
-
-                            ShellCalc calcFinal = new(
-                                    testParameters.BarrelCount,
-                                    0f, // Gauge does not matter for calcFinal because it is only running tests on pre-calculated shells
-                                    0f,
-                                    testParameters.HeadIndices,
-                                    testParameters.BaseModule,
-                                    testParameters.FixedModulecounts,
-                                    testParameters.MinModulecount,
-                                    testParameters.VariableModuleIndices,
-                                    testParameters.RegularClipsPerLoader,
-                                    testParameters.RegularInputsPerLoader,
-                                    testParameters.BeltfedClipsPerLoader,
-                                    testParameters.BeltfedInputsPerLoader,
-                                    testParameters.UsesAmmoEjector,
-                                    testParameters.MaxGPCasingCount,
-                                    testParameters.GPIncrement,
-                                    testParameters.MaxRGCasingCount,
-                                    testParameters.MinLength,
-                                    testParameters.MaxLength,
-                                    testParameters.MaxDraw,
-                                    testParameters.MaxRecoil,
-                                    testParameters.MinVelocity,
-                                    testParameters.MinEffectiverange,
-                                    testParameters.ImpactAngle,
-                                    testParameters.SabotAngleMultiplier,
-                                    testParameters.NonSabotAngleMultiplier,
-                                    ac,
-                                    testParameters.DamageType,
-                                    testParameters.FragConeAngle,
-                                    testParameters.FragAngleMultiplier,
-                                    testParameters.MinDisruptor,
-                                    testParameters.ArmorScheme,
-                                    testParameters.TestType,
-                                    testParameters.TestInterval,
-                                    testParameters.StoragePerVolume,
-                                    testParameters.StoragePerCost,
-                                    testParameters.EnginePpm,
-                                    testParameters.EnginePpv,
-                                    testParameters.EnginePpc,
-                                    testParameters.EngineUsesFuel,
-                                    testParameters.FiringPieceIsDif,
-                                    testParameters.GunUsesRecoilAbsorbers,
-                                    testParameters.MaxInaccuracy,
-                                    testParameters.RateOfFireRpm,
-                                    testParameters.LimitBarrelLength,
-                                    testParameters.MaxBarrelLength,
-                                    testParameters.BarrelLengthLimitType,
-                                    testParameters.VerboseOutputIsChecked,
-                                    testParameters.RawNumberOutputIsChecked,
-                                    testParameters.ColumnDelimiter
-                                );
-
-                            calcFinal.FindTopShellsInList(shellBag);
-                            calcFinal.AddTopShellsToDictionary();
-                            calcFinal.WriteTopShells(testParameters.MinGauge, testParameters.MaxGauge);
-                        }
-                    }
-                    else
+                    foreach (float ac in testParameters.TargetACList)
                     {
                         ConcurrentBag<Shell> shellBag = [];
                         Parallel.For(testParameters.MinGauge, testParameters.MaxGauge + 1, gauge =>
                         {
-                            float gaugeFloat = gauge;
                             ShellCalc calcLocal = new(
                                 testParameters.BarrelCount,
                                 gauge,
@@ -1091,7 +968,7 @@ namespace ApsCalcUI
                                 testParameters.ImpactAngle,
                                 testParameters.SabotAngleMultiplier,
                                 testParameters.NonSabotAngleMultiplier,
-                                0, // Target AC does not matter for non-kinetic tests
+                                ac,
                                 testParameters.DamageType,
                                 testParameters.FragConeAngle,
                                 testParameters.FragAngleMultiplier,
@@ -1117,6 +994,7 @@ namespace ApsCalcUI
                                 testParameters.ColumnDelimiter
                                 );
 
+
                             calcLocal.ShellTest();
                             calcLocal.AddTopShellsToLocalList();
 
@@ -1129,7 +1007,7 @@ namespace ApsCalcUI
                         ShellCalc calcFinal = new(
                                 testParameters.BarrelCount,
                                 0f, // Gauge does not matter for calcFinal because it is only running tests on pre-calculated shells
-                                0f,
+                                0f, // Gauge multiplier ""
                                 testParameters.HeadIndices,
                                 testParameters.BaseModule,
                                 testParameters.FixedModulecounts,
@@ -1152,7 +1030,7 @@ namespace ApsCalcUI
                                 testParameters.ImpactAngle,
                                 testParameters.SabotAngleMultiplier,
                                 testParameters.NonSabotAngleMultiplier,
-                                0, // Target AC does not matter for non-kinetic tests
+                                ac,
                                 testParameters.DamageType,
                                 testParameters.FragConeAngle,
                                 testParameters.FragAngleMultiplier,
@@ -1182,7 +1060,6 @@ namespace ApsCalcUI
                         calcFinal.AddTopShellsToDictionary();
                         calcFinal.WriteTopShells(testParameters.MinGauge, testParameters.MaxGauge);
                     }
-
                     testsInQueue -= 1;
                     TestsInQueueLabel.Text = "Tests Remaining: " + testsInQueue.ToString();
                 }

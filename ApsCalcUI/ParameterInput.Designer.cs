@@ -233,7 +233,7 @@ namespace ApsCalcUI
             // 
             // HeadModulesLabel
             // 
-            HeadModulesLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            HeadModulesLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             HeadModulesLabel.Location = new System.Drawing.Point(12, 147);
             HeadModulesLabel.Name = "HeadModulesLabel";
             HeadModulesLabel.Size = new System.Drawing.Size(205, 15);
@@ -245,7 +245,7 @@ namespace ApsCalcUI
             // SupercavRB
             // 
             SupercavRB.AutoSize = true;
-            SupercavRB.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            SupercavRB.ForeColor = System.Drawing.SystemColors.ControlText;
             SupercavRB.Location = new System.Drawing.Point(112, 50);
             SupercavRB.Name = "SupercavRB";
             SupercavRB.Size = new System.Drawing.Size(73, 19);
@@ -257,7 +257,7 @@ namespace ApsCalcUI
             // GravRB
             // 
             GravRB.AutoSize = true;
-            GravRB.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            GravRB.ForeColor = System.Drawing.SystemColors.ControlText;
             GravRB.Location = new System.Drawing.Point(112, 72);
             GravRB.Name = "GravRB";
             GravRB.Size = new System.Drawing.Size(76, 19);
@@ -281,7 +281,7 @@ namespace ApsCalcUI
             // 
             PerCostRB.AutoSize = true;
             PerCostRB.Checked = true;
-            PerCostRB.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            PerCostRB.ForeColor = System.Drawing.SystemColors.ControlText;
             PerCostRB.Location = new System.Drawing.Point(4, 26);
             PerCostRB.Name = "PerCostRB";
             PerCostRB.Size = new System.Drawing.Size(49, 19);
@@ -294,7 +294,7 @@ namespace ApsCalcUI
             // PerVolumeRB
             // 
             PerVolumeRB.AutoSize = true;
-            PerVolumeRB.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            PerVolumeRB.ForeColor = System.Drawing.SystemColors.ControlText;
             PerVolumeRB.Location = new System.Drawing.Point(4, 3);
             PerVolumeRB.Name = "PerVolumeRB";
             PerVolumeRB.Size = new System.Drawing.Size(65, 19);
@@ -541,7 +541,7 @@ namespace ApsCalcUI
             // 
             // VariableModulesLabel
             // 
-            VariableModulesLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            VariableModulesLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             VariableModulesLabel.Location = new System.Drawing.Point(0, -8);
             VariableModulesLabel.Name = "VariableModulesLabel";
             VariableModulesLabel.Size = new System.Drawing.Size(154, 27);
@@ -577,7 +577,7 @@ namespace ApsCalcUI
             // 
             GenericStorageButton.AutoSize = true;
             GenericStorageButton.Checked = true;
-            GenericStorageButton.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            GenericStorageButton.ForeColor = System.Drawing.SystemColors.ControlText;
             GenericStorageButton.Location = new System.Drawing.Point(14, 19);
             GenericStorageButton.Name = "GenericStorageButton";
             GenericStorageButton.Size = new System.Drawing.Size(65, 19);
@@ -590,7 +590,7 @@ namespace ApsCalcUI
             // CargoContainerStorageButton
             // 
             CargoContainerStorageButton.AutoSize = true;
-            CargoContainerStorageButton.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            CargoContainerStorageButton.ForeColor = System.Drawing.SystemColors.ControlText;
             CargoContainerStorageButton.Location = new System.Drawing.Point(14, 37);
             CargoContainerStorageButton.Name = "CargoContainerStorageButton";
             CargoContainerStorageButton.Size = new System.Drawing.Size(112, 19);
@@ -603,7 +603,7 @@ namespace ApsCalcUI
             // CoalStorageButton
             // 
             CoalStorageButton.AutoSize = true;
-            CoalStorageButton.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            CoalStorageButton.ForeColor = System.Drawing.SystemColors.ControlText;
             CoalStorageButton.Location = new System.Drawing.Point(14, 54);
             CoalStorageButton.Name = "CoalStorageButton";
             CoalStorageButton.Size = new System.Drawing.Size(49, 19);
@@ -617,7 +617,7 @@ namespace ApsCalcUI
             // 
             StoragePanelLabel.Anchor = System.Windows.Forms.AnchorStyles.Top;
             StoragePanelLabel.AutoSize = true;
-            StoragePanelLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            StoragePanelLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             StoragePanelLabel.Location = new System.Drawing.Point(43, 3);
             StoragePanelLabel.Name = "StoragePanelLabel";
             StoragePanelLabel.Size = new System.Drawing.Size(75, 15);
@@ -645,7 +645,7 @@ namespace ApsCalcUI
             // EngineFuelCB
             // 
             EngineFuelCB.AutoSize = true;
-            EngineFuelCB.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            EngineFuelCB.ForeColor = System.Drawing.SystemColors.ControlText;
             EngineFuelCB.Location = new System.Drawing.Point(32, 9);
             EngineFuelCB.Name = "EngineFuelCB";
             EngineFuelCB.Size = new System.Drawing.Size(87, 19);
@@ -657,7 +657,7 @@ namespace ApsCalcUI
             // EnginePpcLabel
             // 
             EnginePpcLabel.AutoSize = true;
-            EnginePpcLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            EnginePpcLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             EnginePpcLabel.Location = new System.Drawing.Point(113, 35);
             EnginePpcLabel.Name = "EnginePpcLabel";
             EnginePpcLabel.Size = new System.Drawing.Size(29, 15);
@@ -667,7 +667,7 @@ namespace ApsCalcUI
             // EnginePpvLabel
             // 
             EnginePpvLabel.AutoSize = true;
-            EnginePpvLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            EnginePpvLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             EnginePpvLabel.Location = new System.Drawing.Point(65, 35);
             EnginePpvLabel.Name = "EnginePpvLabel";
             EnginePpvLabel.Size = new System.Drawing.Size(28, 15);
@@ -705,7 +705,7 @@ namespace ApsCalcUI
             // EnginePpmLabel
             // 
             EnginePpmLabel.AutoSize = true;
-            EnginePpmLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            EnginePpmLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             EnginePpmLabel.Location = new System.Drawing.Point(11, 35);
             EnginePpmLabel.Name = "EnginePpmLabel";
             EnginePpmLabel.Size = new System.Drawing.Size(32, 15);
@@ -727,7 +727,7 @@ namespace ApsCalcUI
             // PendepthCB
             // 
             PendepthCB.AutoSize = true;
-            PendepthCB.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            PendepthCB.ForeColor = System.Drawing.SystemColors.ControlText;
             PendepthCB.Location = new System.Drawing.Point(686, 353);
             PendepthCB.Name = "PendepthCB";
             PendepthCB.Size = new System.Drawing.Size(77, 19);
@@ -740,7 +740,7 @@ namespace ApsCalcUI
             // FixedGravCompCB
             // 
             FixedGravCompCB.AutoSize = true;
-            FixedGravCompCB.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            FixedGravCompCB.ForeColor = System.Drawing.SystemColors.ControlText;
             FixedGravCompCB.Location = new System.Drawing.Point(4, 264);
             FixedGravCompCB.Name = "FixedGravCompCB";
             FixedGravCompCB.Size = new System.Drawing.Size(125, 19);
@@ -753,7 +753,7 @@ namespace ApsCalcUI
             // FixedPendepthFuzeCB
             // 
             FixedPendepthFuzeCB.AutoSize = true;
-            FixedPendepthFuzeCB.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            FixedPendepthFuzeCB.ForeColor = System.Drawing.SystemColors.ControlText;
             FixedPendepthFuzeCB.Location = new System.Drawing.Point(4, 289);
             FixedPendepthFuzeCB.Name = "FixedPendepthFuzeCB";
             FixedPendepthFuzeCB.Size = new System.Drawing.Size(104, 19);
@@ -766,7 +766,7 @@ namespace ApsCalcUI
             // FixedTimedFuzeCB
             // 
             FixedTimedFuzeCB.AutoSize = true;
-            FixedTimedFuzeCB.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            FixedTimedFuzeCB.ForeColor = System.Drawing.SystemColors.ControlText;
             FixedTimedFuzeCB.Location = new System.Drawing.Point(4, 314);
             FixedTimedFuzeCB.Name = "FixedTimedFuzeCB";
             FixedTimedFuzeCB.Size = new System.Drawing.Size(87, 19);
@@ -779,7 +779,7 @@ namespace ApsCalcUI
             // FixedInertialFuzeCB
             // 
             FixedInertialFuzeCB.AutoSize = true;
-            FixedInertialFuzeCB.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            FixedInertialFuzeCB.ForeColor = System.Drawing.SystemColors.ControlText;
             FixedInertialFuzeCB.Location = new System.Drawing.Point(4, 339);
             FixedInertialFuzeCB.Name = "FixedInertialFuzeCB";
             FixedInertialFuzeCB.Size = new System.Drawing.Size(89, 19);
@@ -792,7 +792,7 @@ namespace ApsCalcUI
             // FixedAltitudeFuzeCB
             // 
             FixedAltitudeFuzeCB.AutoSize = true;
-            FixedAltitudeFuzeCB.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            FixedAltitudeFuzeCB.ForeColor = System.Drawing.SystemColors.ControlText;
             FixedAltitudeFuzeCB.Location = new System.Drawing.Point(4, 364);
             FixedAltitudeFuzeCB.Name = "FixedAltitudeFuzeCB";
             FixedAltitudeFuzeCB.Size = new System.Drawing.Size(95, 19);
@@ -805,7 +805,7 @@ namespace ApsCalcUI
             // FixedDefuzeCB
             // 
             FixedDefuzeCB.AutoSize = true;
-            FixedDefuzeCB.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            FixedDefuzeCB.ForeColor = System.Drawing.SystemColors.ControlText;
             FixedDefuzeCB.Location = new System.Drawing.Point(4, 389);
             FixedDefuzeCB.Name = "FixedDefuzeCB";
             FixedDefuzeCB.Size = new System.Drawing.Size(124, 19);
@@ -818,7 +818,7 @@ namespace ApsCalcUI
             // ModdedMaxGaugeCB
             // 
             ModdedMaxGaugeCB.AutoSize = true;
-            ModdedMaxGaugeCB.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            ModdedMaxGaugeCB.ForeColor = System.Drawing.SystemColors.ControlText;
             ModdedMaxGaugeCB.Location = new System.Drawing.Point(133, 68);
             ModdedMaxGaugeCB.Name = "ModdedMaxGaugeCB";
             ModdedMaxGaugeCB.Size = new System.Drawing.Size(124, 19);
@@ -831,7 +831,7 @@ namespace ApsCalcUI
             // DifCB
             // 
             DifCB.AutoSize = true;
-            DifCB.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            DifCB.ForeColor = System.Drawing.SystemColors.ControlText;
             DifCB.Location = new System.Drawing.Point(13, 68);
             DifCB.Name = "DifCB";
             DifCB.Size = new System.Drawing.Size(43, 19);
@@ -844,7 +844,7 @@ namespace ApsCalcUI
             // BarrelLengthLimitCB
             // 
             BarrelLengthLimitCB.AutoSize = true;
-            BarrelLengthLimitCB.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            BarrelLengthLimitCB.ForeColor = System.Drawing.SystemColors.ControlText;
             BarrelLengthLimitCB.Location = new System.Drawing.Point(446, 278);
             BarrelLengthLimitCB.Name = "BarrelLengthLimitCB";
             BarrelLengthLimitCB.Size = new System.Drawing.Size(137, 19);
@@ -932,7 +932,7 @@ namespace ApsCalcUI
             GunUsesRecoilAbsorbersCB.AutoSize = true;
             GunUsesRecoilAbsorbersCB.Checked = true;
             GunUsesRecoilAbsorbersCB.CheckState = System.Windows.Forms.CheckState.Checked;
-            GunUsesRecoilAbsorbersCB.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            GunUsesRecoilAbsorbersCB.ForeColor = System.Drawing.SystemColors.ControlText;
             GunUsesRecoilAbsorbersCB.Location = new System.Drawing.Point(13, 93);
             GunUsesRecoilAbsorbersCB.Name = "GunUsesRecoilAbsorbersCB";
             GunUsesRecoilAbsorbersCB.Size = new System.Drawing.Size(112, 19);
@@ -959,7 +959,7 @@ namespace ApsCalcUI
             // CommaDecimalCB
             // 
             CommaDecimalCB.AutoSize = true;
-            CommaDecimalCB.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            CommaDecimalCB.ForeColor = System.Drawing.SystemColors.ControlText;
             CommaDecimalCB.Location = new System.Drawing.Point(629, 624);
             CommaDecimalCB.Name = "CommaDecimalCB";
             CommaDecimalCB.Size = new System.Drawing.Size(168, 19);
@@ -1019,7 +1019,7 @@ namespace ApsCalcUI
             // AmmoEjectorCB
             // 
             AmmoEjectorCB.AutoSize = true;
-            AmmoEjectorCB.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            AmmoEjectorCB.ForeColor = System.Drawing.SystemColors.ControlText;
             AmmoEjectorCB.Location = new System.Drawing.Point(49, 82);
             AmmoEjectorCB.Name = "AmmoEjectorCB";
             AmmoEjectorCB.Size = new System.Drawing.Size(102, 19);
@@ -1053,7 +1053,7 @@ namespace ApsCalcUI
             // RawNumberOutputCB
             // 
             RawNumberOutputCB.AutoSize = true;
-            RawNumberOutputCB.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            RawNumberOutputCB.ForeColor = System.Drawing.SystemColors.ControlText;
             RawNumberOutputCB.Location = new System.Drawing.Point(629, 601);
             RawNumberOutputCB.Name = "RawNumberOutputCB";
             RawNumberOutputCB.Size = new System.Drawing.Size(136, 19);
@@ -1081,7 +1081,7 @@ namespace ApsCalcUI
             // VerboseOutputCB
             // 
             VerboseOutputCB.AutoSize = true;
-            VerboseOutputCB.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            VerboseOutputCB.ForeColor = System.Drawing.SystemColors.ControlText;
             VerboseOutputCB.Location = new System.Drawing.Point(629, 578);
             VerboseOutputCB.Name = "VerboseOutputCB";
             VerboseOutputCB.Size = new System.Drawing.Size(108, 19);
@@ -1093,7 +1093,7 @@ namespace ApsCalcUI
             // BarrelCountLabel
             // 
             BarrelCountLabel.AutoSize = true;
-            BarrelCountLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            BarrelCountLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             BarrelCountLabel.Location = new System.Drawing.Point(10, 13);
             BarrelCountLabel.Name = "BarrelCountLabel";
             BarrelCountLabel.Size = new System.Drawing.Size(73, 15);
@@ -1103,7 +1103,7 @@ namespace ApsCalcUI
             // MinGaugeLabel
             // 
             MinGaugeLabel.AutoSize = true;
-            MinGaugeLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            MinGaugeLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             MinGaugeLabel.Location = new System.Drawing.Point(147, 25);
             MinGaugeLabel.Name = "MinGaugeLabel";
             MinGaugeLabel.Size = new System.Drawing.Size(28, 15);
@@ -1114,7 +1114,7 @@ namespace ApsCalcUI
             // 
             MaxGaugeLabel.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
             MaxGaugeLabel.AutoSize = true;
-            MaxGaugeLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            MaxGaugeLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             MaxGaugeLabel.Location = new System.Drawing.Point(225, 25);
             MaxGaugeLabel.Name = "MaxGaugeLabel";
             MaxGaugeLabel.Size = new System.Drawing.Size(29, 15);
@@ -1127,7 +1127,7 @@ namespace ApsCalcUI
             HeadModulesCL.FormattingEnabled = true;
             HeadModulesCL.Location = new System.Drawing.Point(13, 163);
             HeadModulesCL.Name = "HeadModulesCL";
-            HeadModulesCL.Size = new System.Drawing.Size(205, 364);
+            HeadModulesCL.Size = new System.Drawing.Size(205, 418);
             HeadModulesCL.TabIndex = 3;
             HeadModulesCL.SelectedIndexChanged += HeadModulesCL_SelectedIndexChanged;
             // 
@@ -1146,7 +1146,7 @@ namespace ApsCalcUI
             // 
             // BaseModulesLabel
             // 
-            BaseModulesLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            BaseModulesLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             BaseModulesLabel.Location = new System.Drawing.Point(0, 0);
             BaseModulesLabel.Name = "BaseModulesLabel";
             BaseModulesLabel.Size = new System.Drawing.Size(206, 27);
@@ -1158,7 +1158,7 @@ namespace ApsCalcUI
             // 
             NoBaseRB.AutoSize = true;
             NoBaseRB.Checked = true;
-            NoBaseRB.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            NoBaseRB.ForeColor = System.Drawing.SystemColors.ControlText;
             NoBaseRB.Location = new System.Drawing.Point(51, 28);
             NoBaseRB.Name = "NoBaseRB";
             NoBaseRB.Size = new System.Drawing.Size(108, 19);
@@ -1171,7 +1171,7 @@ namespace ApsCalcUI
             // TracerRB
             // 
             TracerRB.AutoSize = true;
-            TracerRB.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            TracerRB.ForeColor = System.Drawing.SystemColors.ControlText;
             TracerRB.Location = new System.Drawing.Point(14, 72);
             TracerRB.Name = "TracerRB";
             TracerRB.Size = new System.Drawing.Size(94, 19);
@@ -1183,7 +1183,7 @@ namespace ApsCalcUI
             // BaseBleederRB
             // 
             BaseBleederRB.AutoSize = true;
-            BaseBleederRB.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            BaseBleederRB.ForeColor = System.Drawing.SystemColors.ControlText;
             BaseBleederRB.Location = new System.Drawing.Point(14, 51);
             BaseBleederRB.Name = "BaseBleederRB";
             BaseBleederRB.Size = new System.Drawing.Size(91, 19);
@@ -1226,7 +1226,7 @@ namespace ApsCalcUI
             // IncendiaryBodyFixedLabel
             // 
             IncendiaryBodyFixedLabel.AutoSize = true;
-            IncendiaryBodyFixedLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            IncendiaryBodyFixedLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             IncendiaryBodyFixedLabel.Location = new System.Drawing.Point(4, 231);
             IncendiaryBodyFixedLabel.Name = "IncendiaryBodyFixedLabel";
             IncendiaryBodyFixedLabel.Size = new System.Drawing.Size(92, 15);
@@ -1236,7 +1236,7 @@ namespace ApsCalcUI
             // SmokeBodyFixedLabel
             // 
             SmokeBodyFixedLabel.AutoSize = true;
-            SmokeBodyFixedLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            SmokeBodyFixedLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             SmokeBodyFixedLabel.Location = new System.Drawing.Point(4, 206);
             SmokeBodyFixedLabel.Name = "SmokeBodyFixedLabel";
             SmokeBodyFixedLabel.Size = new System.Drawing.Size(73, 15);
@@ -1246,7 +1246,7 @@ namespace ApsCalcUI
             // FinFixedLabel
             // 
             FinFixedLabel.AutoSize = true;
-            FinFixedLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            FinFixedLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             FinFixedLabel.Location = new System.Drawing.Point(4, 181);
             FinFixedLabel.Name = "FinFixedLabel";
             FinFixedLabel.Size = new System.Drawing.Size(73, 15);
@@ -1256,7 +1256,7 @@ namespace ApsCalcUI
             // HEBodyFixedLabel
             // 
             HEBodyFixedLabel.AutoSize = true;
-            HEBodyFixedLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            HEBodyFixedLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             HEBodyFixedLabel.Location = new System.Drawing.Point(4, 156);
             HEBodyFixedLabel.Name = "HEBodyFixedLabel";
             HEBodyFixedLabel.Size = new System.Drawing.Size(52, 15);
@@ -1266,7 +1266,7 @@ namespace ApsCalcUI
             // FragBodyFixedLabel
             // 
             FragBodyFixedLabel.AutoSize = true;
-            FragBodyFixedLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            FragBodyFixedLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             FragBodyFixedLabel.Location = new System.Drawing.Point(4, 131);
             FragBodyFixedLabel.Name = "FragBodyFixedLabel";
             FragBodyFixedLabel.Size = new System.Drawing.Size(60, 15);
@@ -1276,7 +1276,7 @@ namespace ApsCalcUI
             // FlakBodyFixedLabel
             // 
             FlakBodyFixedLabel.AutoSize = true;
-            FlakBodyFixedLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            FlakBodyFixedLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             FlakBodyFixedLabel.Location = new System.Drawing.Point(4, 106);
             FlakBodyFixedLabel.Name = "FlakBodyFixedLabel";
             FlakBodyFixedLabel.Size = new System.Drawing.Size(110, 15);
@@ -1286,7 +1286,7 @@ namespace ApsCalcUI
             // EmpBodyFixedLabel
             // 
             EmpBodyFixedLabel.AutoSize = true;
-            EmpBodyFixedLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            EmpBodyFixedLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             EmpBodyFixedLabel.Location = new System.Drawing.Point(4, 81);
             EmpBodyFixedLabel.Name = "EmpBodyFixedLabel";
             EmpBodyFixedLabel.Size = new System.Drawing.Size(61, 15);
@@ -1296,7 +1296,7 @@ namespace ApsCalcUI
             // SabotBodyFixedLabel
             // 
             SabotBodyFixedLabel.AutoSize = true;
-            SabotBodyFixedLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            SabotBodyFixedLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             SabotBodyFixedLabel.Location = new System.Drawing.Point(4, 56);
             SabotBodyFixedLabel.Name = "SabotBodyFixedLabel";
             SabotBodyFixedLabel.Size = new System.Drawing.Size(67, 15);
@@ -1306,7 +1306,7 @@ namespace ApsCalcUI
             // SolidBodyFixedLabel
             // 
             SolidBodyFixedLabel.AutoSize = true;
-            SolidBodyFixedLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            SolidBodyFixedLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             SolidBodyFixedLabel.Location = new System.Drawing.Point(4, 31);
             SolidBodyFixedLabel.Name = "SolidBodyFixedLabel";
             SolidBodyFixedLabel.Size = new System.Drawing.Size(63, 15);
@@ -1315,7 +1315,7 @@ namespace ApsCalcUI
             // 
             // FixedModulesLabel
             // 
-            FixedModulesLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            FixedModulesLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             FixedModulesLabel.Location = new System.Drawing.Point(0, 0);
             FixedModulesLabel.Name = "FixedModulesLabel";
             FixedModulesLabel.Size = new System.Drawing.Size(173, 27);
@@ -1344,7 +1344,7 @@ namespace ApsCalcUI
             // MaxGPLabel
             // 
             MaxGPLabel.AutoSize = true;
-            MaxGPLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            MaxGPLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             MaxGPLabel.Location = new System.Drawing.Point(441, 18);
             MaxGPLabel.Name = "MaxGPLabel";
             MaxGPLabel.Size = new System.Drawing.Size(91, 15);
@@ -1354,7 +1354,7 @@ namespace ApsCalcUI
             // MaxRGLabel
             // 
             MaxRGLabel.AutoSize = true;
-            MaxRGLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            MaxRGLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             MaxRGLabel.Location = new System.Drawing.Point(441, 68);
             MaxRGLabel.Name = "MaxRGLabel";
             MaxRGLabel.Size = new System.Drawing.Size(91, 15);
@@ -1364,7 +1364,7 @@ namespace ApsCalcUI
             // MaxDrawLabel
             // 
             MaxDrawLabel.AutoSize = true;
-            MaxDrawLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            MaxDrawLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             MaxDrawLabel.Location = new System.Drawing.Point(441, 93);
             MaxDrawLabel.Name = "MaxDrawLabel";
             MaxDrawLabel.Size = new System.Drawing.Size(81, 15);
@@ -1374,7 +1374,7 @@ namespace ApsCalcUI
             // MaxRecoilLabel
             // 
             MaxRecoilLabel.AutoSize = true;
-            MaxRecoilLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            MaxRecoilLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             MaxRecoilLabel.Location = new System.Drawing.Point(441, 118);
             MaxRecoilLabel.Name = "MaxRecoilLabel";
             MaxRecoilLabel.Size = new System.Drawing.Size(64, 15);
@@ -1384,7 +1384,7 @@ namespace ApsCalcUI
             // MaxLengthLabel
             // 
             MaxLengthLabel.AutoSize = true;
-            MaxLengthLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            MaxLengthLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             MaxLengthLabel.Location = new System.Drawing.Point(441, 168);
             MaxLengthLabel.Name = "MaxLengthLabel";
             MaxLengthLabel.Size = new System.Drawing.Size(102, 15);
@@ -1394,7 +1394,7 @@ namespace ApsCalcUI
             // MinVelocityLabel
             // 
             MinVelocityLabel.AutoSize = true;
-            MinVelocityLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            MinVelocityLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             MinVelocityLabel.Location = new System.Drawing.Point(441, 193);
             MinVelocityLabel.Name = "MinVelocityLabel";
             MinVelocityLabel.Size = new System.Drawing.Size(104, 15);
@@ -1404,7 +1404,7 @@ namespace ApsCalcUI
             // MinRangeLabel
             // 
             MinRangeLabel.AutoSize = true;
-            MinRangeLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            MinRangeLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             MinRangeLabel.Location = new System.Drawing.Point(441, 218);
             MinRangeLabel.Name = "MinRangeLabel";
             MinRangeLabel.Size = new System.Drawing.Size(106, 15);
@@ -1414,7 +1414,7 @@ namespace ApsCalcUI
             // DamageTypeLabel
             // 
             DamageTypeLabel.AutoSize = true;
-            DamageTypeLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            DamageTypeLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             DamageTypeLabel.Location = new System.Drawing.Point(446, 316);
             DamageTypeLabel.Name = "DamageTypeLabel";
             DamageTypeLabel.Size = new System.Drawing.Size(55, 15);
@@ -1433,7 +1433,7 @@ namespace ApsCalcUI
             // PerLabel
             // 
             PerLabel.AutoSize = true;
-            PerLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            PerLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             PerLabel.Location = new System.Drawing.Point(629, 316);
             PerLabel.Name = "PerLabel";
             PerLabel.Size = new System.Drawing.Size(48, 15);
@@ -1470,7 +1470,7 @@ namespace ApsCalcUI
             // GaugeLabel
             // 
             GaugeLabel.AutoSize = true;
-            GaugeLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            GaugeLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             GaugeLabel.Location = new System.Drawing.Point(148, 7);
             GaugeLabel.Name = "GaugeLabel";
             GaugeLabel.Size = new System.Drawing.Size(74, 15);
@@ -1502,7 +1502,7 @@ namespace ApsCalcUI
             // 
             // TargetSchemeLabel
             // 
-            TargetSchemeLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            TargetSchemeLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             TargetSchemeLabel.Location = new System.Drawing.Point(0, -8);
             TargetSchemeLabel.Name = "TargetSchemeLabel";
             TargetSchemeLabel.Size = new System.Drawing.Size(174, 31);
@@ -1521,7 +1521,7 @@ namespace ApsCalcUI
             // TestsInQueueLabel
             // 
             TestsInQueueLabel.AutoSize = true;
-            TestsInQueueLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            TestsInQueueLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             TestsInQueueLabel.Location = new System.Drawing.Point(678, 647);
             TestsInQueueLabel.Name = "TestsInQueueLabel";
             TestsInQueueLabel.Size = new System.Drawing.Size(96, 15);
@@ -1531,7 +1531,7 @@ namespace ApsCalcUI
             // MinLengthLabel
             // 
             MinLengthLabel.AutoSize = true;
-            MinLengthLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            MinLengthLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             MinLengthLabel.Location = new System.Drawing.Point(441, 143);
             MinLengthLabel.Name = "MinLengthLabel";
             MinLengthLabel.Size = new System.Drawing.Size(101, 15);
@@ -1541,7 +1541,7 @@ namespace ApsCalcUI
             // TestIntervalLabel
             // 
             TestIntervalLabel.AutoSize = true;
-            TestIntervalLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            TestIntervalLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             TestIntervalLabel.Location = new System.Drawing.Point(621, 18);
             TestIntervalLabel.Name = "TestIntervalLabel";
             TestIntervalLabel.Size = new System.Drawing.Size(102, 15);
@@ -1571,7 +1571,7 @@ namespace ApsCalcUI
             // 
             // DisruptorLabel
             // 
-            DisruptorLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            DisruptorLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             DisruptorLabel.Location = new System.Drawing.Point(0, 2);
             DisruptorLabel.Name = "DisruptorLabel";
             DisruptorLabel.Size = new System.Drawing.Size(169, 38);
@@ -1583,7 +1583,7 @@ namespace ApsCalcUI
             // MinInaccLabel
             // 
             MinInaccLabel.AutoSize = true;
-            MinInaccLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            MinInaccLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             MinInaccLabel.Location = new System.Drawing.Point(441, 243);
             MinInaccLabel.Name = "MinInaccLabel";
             MinInaccLabel.Size = new System.Drawing.Size(105, 15);
@@ -1593,7 +1593,7 @@ namespace ApsCalcUI
             // ImpactAngleLabel
             // 
             ImpactAngleLabel.AutoSize = true;
-            ImpactAngleLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            ImpactAngleLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             ImpactAngleLabel.Location = new System.Drawing.Point(10, 119);
             ImpactAngleLabel.Name = "ImpactAngleLabel";
             ImpactAngleLabel.Size = new System.Drawing.Size(81, 15);
@@ -1603,7 +1603,7 @@ namespace ApsCalcUI
             // ImpactAngleLabel2
             // 
             ImpactAngleLabel2.AutoSize = true;
-            ImpactAngleLabel2.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            ImpactAngleLabel2.ForeColor = System.Drawing.SystemColors.ControlText;
             ImpactAngleLabel2.Location = new System.Drawing.Point(134, 119);
             ImpactAngleLabel2.Name = "ImpactAngleLabel2";
             ImpactAngleLabel2.Size = new System.Drawing.Size(117, 15);
@@ -1624,7 +1624,7 @@ namespace ApsCalcUI
             // FragAngleLabel
             // 
             FragAngleLabel.AutoSize = true;
-            FragAngleLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            FragAngleLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             FragAngleLabel.Location = new System.Drawing.Point(30, 16);
             FragAngleLabel.Name = "FragAngleLabel";
             FragAngleLabel.Size = new System.Drawing.Size(111, 15);
@@ -1635,7 +1635,7 @@ namespace ApsCalcUI
             // RofRpmLabel
             // 
             RofRpmLabel.AutoSize = true;
-            RofRpmLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            RofRpmLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             RofRpmLabel.Location = new System.Drawing.Point(10, 12);
             RofRpmLabel.Name = "RofRpmLabel";
             RofRpmLabel.Size = new System.Drawing.Size(65, 15);
@@ -1673,7 +1673,7 @@ namespace ApsCalcUI
             // InputsPerLoaderLabel
             // 
             InputsPerLoaderLabel.AutoSize = true;
-            InputsPerLoaderLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            InputsPerLoaderLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             InputsPerLoaderLabel.Location = new System.Drawing.Point(3, 57);
             InputsPerLoaderLabel.Name = "InputsPerLoaderLabel";
             InputsPerLoaderLabel.Size = new System.Drawing.Size(99, 15);
@@ -1683,7 +1683,7 @@ namespace ApsCalcUI
             // ClipCountLabel
             // 
             ClipCountLabel.AutoSize = true;
-            ClipCountLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            ClipCountLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             ClipCountLabel.Location = new System.Drawing.Point(9, 29);
             ClipCountLabel.Name = "ClipCountLabel";
             ClipCountLabel.Size = new System.Drawing.Size(92, 15);
@@ -1693,7 +1693,7 @@ namespace ApsCalcUI
             // RegularClipCountLabel
             // 
             RegularClipCountLabel.AutoSize = true;
-            RegularClipCountLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            RegularClipCountLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             RegularClipCountLabel.Location = new System.Drawing.Point(100, 6);
             RegularClipCountLabel.Name = "RegularClipCountLabel";
             RegularClipCountLabel.Size = new System.Drawing.Size(47, 15);
@@ -1703,7 +1703,7 @@ namespace ApsCalcUI
             // BeltfedClipCountLabel
             // 
             BeltfedClipCountLabel.AutoSize = true;
-            BeltfedClipCountLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            BeltfedClipCountLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             BeltfedClipCountLabel.Location = new System.Drawing.Point(153, 6);
             BeltfedClipCountLabel.Name = "BeltfedClipCountLabel";
             BeltfedClipCountLabel.Size = new System.Drawing.Size(44, 15);
@@ -1713,7 +1713,7 @@ namespace ApsCalcUI
             // GPIncrementLabel
             // 
             GPIncrementLabel.AutoSize = true;
-            GPIncrementLabel.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            GPIncrementLabel.ForeColor = System.Drawing.SystemColors.ControlText;
             GPIncrementLabel.Location = new System.Drawing.Point(441, 43);
             GPIncrementLabel.Name = "GPIncrementLabel";
             GPIncrementLabel.Size = new System.Drawing.Size(79, 15);
@@ -1726,7 +1726,7 @@ namespace ApsCalcUI
             AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
             AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             AutoScroll = true;
-            BackColor = System.Drawing.SystemColors.WindowFrame;
+            BackColor = System.Drawing.SystemColors.Window;
             ClientSize = new System.Drawing.Size(800, 746);
             Controls.Add(VerboseOutputCB);
             Controls.Add(GPIncrementUD);
