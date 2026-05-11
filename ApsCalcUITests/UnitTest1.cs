@@ -1,6 +1,9 @@
 using NUnit.Framework;
 using ApsCalcUI;
 using System;
+using System.Linq;
+using System.Collections.Generic;
+using System.Diagnostics;
 
 namespace ApsCalcUITests
 {
@@ -614,6 +617,22 @@ namespace ApsCalcUITests
             testShell.CalculateMaxProjectileLengthForInaccuracy(21.56f, 0.2f);
             Assert.AreEqual(testShell.OverallInaccuracyModifier, 1.35f);
             Assert.AreEqual(testShell.CalculateMaxProjectileLengthForInaccuracy(21.56f, 0.2f), 899.569763f);
+        }
+
+        [Test]
+        public void GenerateGridTest()
+        {
+            float minGP = 0.5f;
+            float maxGP = 8f;
+            float minRG = 1.5f;
+            float maxRG = 7f;
+            float spacing = 1f;
+
+            List<(float gpCount, float rgCount)> testGrid = ShellCalc.GenerateCasingGrid(minGP, maxGP, minRG, maxRG, spacing);
+            foreach ((float gpCount, float rgCount) casingCounts in testGrid)
+            {
+                Console.WriteLine("gp: " + casingCounts.gpCount + ". rg: " + casingCounts.rgCount);
+            }
         }
     }
 }

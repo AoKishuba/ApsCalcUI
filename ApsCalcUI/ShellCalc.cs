@@ -742,7 +742,7 @@ namespace ApsCalcUI
         /// <returns>Min GP casing count for current row</returns>
         static float CalculateGPLeftBound(float rg, float minGP, float minRG)
         {
-            if (minRG == 0f) return 0; // chart is 1D on GP axis
+            if (minRG == 0f) return minGP; // chart is 1D on GP axis
             if (rg <= minRG) return minGP * (1f - rg / minRG); // inner diagonal between (minGP, 0) and (0, minRG)
             return 0f; // RG axis
         }
@@ -770,14 +770,14 @@ namespace ApsCalcUI
         /// <param name="maxRG">Max RG casing count</param>
         /// <param name="spacing">Interval between points</param>
         /// <returns>Skewed grid of points representing combinations of casing counts</returns>
-        static List<(float gpCount, float rgCount)> GenerateCasingGrid(float minGP, float maxGP, float minRG, float maxRG, float spacing)
+        public static List<(float gpCount, float rgCount)> GenerateCasingGrid(float minGP, float maxGP, float minRG, float maxRG, float spacing)
         {
             List<(float gpCount, float rgCount)> casingGrid = [];
             for (float rgCount = 0; rgCount < maxRG; rgCount += MathF.Min(spacing, maxRG - rgCount))
             {
                 float gpLeft = CalculateGPLeftBound(rgCount, minGP, minRG);
                 float gpRight = CalculateGPRightBound(rgCount, maxGP, maxRG);
-                for (float  gpCount = gpLeft; gpCount < gpRight; gpCount += MathF.Min(spacing, maxGP - gpCount))
+                for (float  gpCount = gpLeft; gpCount < gpRight; gpCount += MathF.Min(spacing, gpRight - gpCount))
                 {
                     casingGrid.Add((gpCount, rgCount));
                 }
