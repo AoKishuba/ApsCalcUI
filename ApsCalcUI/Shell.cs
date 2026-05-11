@@ -71,6 +71,10 @@ namespace ApsCalcUI
 
 
         // Power
+        public float GPRecoilPerCasing { get; } = 2500f * gaugeMultiplier;
+        public float DrawPerProjectileModule { get; } = 12500f * gaugeMultiplier; // Draw per projectile module, hard-coded
+        public float RGCasingDrawMultiplier { get; } = 1.25f; // (Draw per RG casing / draw per projectile module), hard-coded
+        public float RGCasingFeltRecoilMultiplier { get; } = 0.6f;
         public float GPRecoil { get; set; }
         public float MaxDrawCasing { get; set; }
         public float MaxDrawShell { get; set; }
@@ -423,6 +427,22 @@ namespace ApsCalcUI
             }
         }
 
+        /// <summary>
+        /// Calculates max allowed GP recoil for given inaccuracy (only affects guns without recoil absorbers)
+        /// </summary>
+        /// <param name="maxBarrelLengthInM">Max allowed barrel length for inaccuracy</param>
+        /// <param name="desiredInaccuracy">Desired inaccuracy value, in degrees</param>
+        public float CalculateMaxRecoilForInaccuracy(float maxBarrelLengthInM, float desiredInaccuracy)
+        {
+            float maxGPRecoilForInaccuracy =
+                (MathF.Pow(
+                    MathF.Pow(ProjectileLength / 1000f, 3f / 4f) / maxBarrelLengthInM * 4f, 1f / 2.5f)
+                / 0.3f * desiredInaccuracy / OverallInaccuracyModifier - 1f)
+                / 0.6f * 12500f * GaugeMultiplier;
+
+            return maxGPRecoilForInaccuracy;
+        }
+
 
         /// <summary>
         /// Calculates max allowed rail draw for given inaccuracy (only affects guns without recoil absorbers)
@@ -438,8 +458,8 @@ namespace ApsCalcUI
                 / 0.3f * desiredInaccuracy / OverallInaccuracyModifier - 1f)
                 / 0.6f * 12500f * GaugeMultiplier - GPRecoil;
 
-            float maxCasingDrawForInaccuracy = MathF.Min(maxRailRecoilForInaccuracy / 0.6f, maxDrawCasing);
-            float maxCasingRecoilForInaccuracy = maxCasingDrawForInaccuracy * 0.6f;
+            float maxCasingDrawForInaccuracy = MathF.Min(maxRailRecoilForInaccuracy / RGCasingFeltRecoilMultiplier, maxDrawCasing);
+            float maxCasingRecoilForInaccuracy = maxCasingDrawForInaccuracy * RGCasingFeltRecoilMultiplier;
             float maxProjectileDrawForInaccuracy = maxRailRecoilForInaccuracy - maxCasingRecoilForInaccuracy;
             float maxDrawForInaccuracy = maxProjectileDrawForInaccuracy + maxCasingDrawForInaccuracy;
 
@@ -480,8 +500,8 @@ namespace ApsCalcUI
         /// </summary>
         public void CalculateMaxDraw()
         {
-            MaxDrawCasing = GaugeMultiplier * 12500f * 1.25f * RGCasingCount;
-            MaxDrawShell = MaxDrawCasing + 12500f * GaugeMultiplier * EffectiveProjectileModuleCount;
+            MaxDrawCasing = DrawPerProjectileModule * RGCasingDrawMultiplier * RGCasingCount;
+            MaxDrawShell = MaxDrawCasing + DrawPerProjectileModule * EffectiveProjectileModuleCount;
         }
 
 
@@ -490,8 +510,8 @@ namespace ApsCalcUI
         /// </summary>
         public void CalculateRecoil()
         {
-            GPRecoil = GaugeMultiplier * GPCasingCount * 2500f;
-            FeltRecoil = GPRecoil + 0.6f * MathF.Min(RailDraw, MaxDrawCasing) + MathF.Max(RailDraw - MaxDrawCasing, 0);
+            GPRecoil = GPRecoilPerCasing * GPCasingCount;
+            FeltRecoil = GPRecoil + RGCasingFeltRecoilMultiplier * MathF.Min(RailDraw, MaxDrawCasing) + MathF.Max(RailDraw - MaxDrawCasing, 0);
             TotalRecoil = GPRecoil + RailDraw;
         }
 
@@ -504,6 +524,41 @@ namespace ApsCalcUI
             Velocity = MathF.Sqrt(TotalRecoil * 85f * Gauge / (GaugeMultiplier * ProjectileLength)) * OverallVelocityModifier;
         }
 
+
+        /// <summary>
+        /// Calculates minimum total recoil needed to achieve given velocity and effective range
+        /// </summary>
+        public float CalculateMinRecoilForVelocityandRange(float minVelocityInput, float minRangeInput)
+        {
+            CalculateRecoil();
+            // Calculate effective time
+            float gravityCompensatorCount = 0;
+            int modIndex = 0;
+            foreach (float modCount in BodyModuleCounts)
+            {
+                if (Module.AllModules[modIndex] == Module.GravCompensator)
+                {
+                    gravityCompensatorCount = BodyModuleCounts[modIndex];
+                    break;
+                }
+                else
+                {
+                    modIndex++;
+                }
+            }
+            float effectiveTime = 10f * OverallVelocityModifier * (ProjectileLength / 1000f) * (1f + gravityCompensatorCount);
+
+            // Determine whether range or velocity is limiting factor
+            float minVelocity = MathF.Max(minVelocityInput, minRangeInput / effectiveTime);
+
+            // Calculate total recoil required for either range or velocity
+            float minDrawVelocity = MathF.Pow(minVelocity / OverallVelocityModifier, 2)
+                * (GaugeMultiplier * ProjectileLength)
+                / (Gauge * 85f);
+            float minRecoil = MathF.Max(0, minDrawVelocity);
+
+            return minRecoil;
+        }
 
         /// <summary>
         /// Calculates minimum rail draw needed to achieve given velocity and effective range

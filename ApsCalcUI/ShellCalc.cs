@@ -7,6 +7,7 @@ using System.Timers;
 using System.Diagnostics;
 using System.Reflection.Metadata.Ecma335;
 using System.DirectoryServices;
+using System.Runtime.Intrinsics.X86;
 
 namespace ApsCalcUI
 {
@@ -16,6 +17,12 @@ namespace ApsCalcUI
         public float[] VariableModCounts;
         public float GPCount;
         public float RGCount;
+    }
+
+    readonly record struct LoaderBracket(float minLengthMMExclusive, float maxLengthMMInclusive)
+    {
+        public bool Overlaps(float min, float max)
+            => minLengthMMExclusive < max && maxLengthMMInclusive >= min;
     }
 
     // Damage types.  Enum is faster than strings.
@@ -299,6 +306,18 @@ namespace ApsCalcUI
         public Dictionary<string, Shell> TopDpsShells { get; set; } = [];
         public List<Shell> TopShellsLocal { get; set; } = [];
 
+        LoaderBracket[] LoaderBrackets { get; } =
+            [
+            new LoaderBracket(0, 1000),
+            new LoaderBracket(1000, 2000),
+            new LoaderBracket(2000, 3000),
+            new LoaderBracket(3000, 4000),
+            new LoaderBracket(4000, 5000),
+            new LoaderBracket(5000, 6000),
+            new LoaderBracket(6000, 7000),
+            new LoaderBracket(7000, 8000),
+        ];
+
         private IEnumerable<ModuleConfig> GenerateModConfigs()
         {
             float maxModuleCount = 20f - FixedModuleTotal;
@@ -403,6 +422,108 @@ namespace ApsCalcUI
                                                             };
                                                         }
                                                     }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Generate only projectile modules; casings to be evaluated separately
+        /// </summary>
+        /// <returns>ModuleConfigs with head and body modules, but no casings</returns>
+        IEnumerable<ModuleConfig> GenerateProjectileConfigs()
+        {
+            float maxModuleCount = 20f - FixedModuleTotal;
+            float var0Max = maxModuleCount;
+            for (int headIndex = 0; headIndex < HeadList.Count; headIndex++)
+            {
+                for (float var0Count = 0; var0Count <= var0Max; var0Count++)
+                {
+                    float var1Max = VariableModuleIndices[1] == VariableModuleIndices[0] ?
+                        0 : maxModuleCount - var0Count;
+                    for (float var1Count = 0; var1Count <= var1Max; var1Count++)
+                    {
+                        float var2Max = VariableModuleIndices[2] == VariableModuleIndices[0] ?
+                            0 : maxModuleCount - var0Count - var1Count;
+                        for (float var2Count = 0; var2Count <= var2Max; var2Count++)
+                        {
+                            float var3Max = VariableModuleIndices[3] == VariableModuleIndices[0] ?
+                                0 : maxModuleCount - var0Count - var1Count - var2Count;
+                            for (float var3Count = 0; var3Count <= var3Max; var3Count++)
+                            {
+                                float var4Max = VariableModuleIndices[4] == VariableModuleIndices[0] ?
+                                    0 : maxModuleCount - var0Count - var1Count - var2Count - var3Count;
+                                for (float var4Count = 0; var4Count <= var4Max; var4Count++)
+                                {
+                                    float var5Max = VariableModuleIndices[5] == VariableModuleIndices[0] ?
+                                        0 :
+                                        maxModuleCount
+                                        - var0Count
+                                        - var1Count
+                                        - var2Count
+                                        - var3Count
+                                        - var4Count;
+                                    for (float var5Count = 0; var5Count <= var5Max; var5Count++)
+                                    {
+                                        float var6Max = VariableModuleIndices[6] == VariableModuleIndices[0] ?
+                                            0 :
+                                            maxModuleCount
+                                            - var0Count
+                                            - var1Count
+                                            - var2Count
+                                            - var3Count
+                                            - var4Count
+                                            - var5Count;
+                                        for (float var6Count = 0; var6Count <= var6Max; var6Count++)
+                                        {
+                                            float var7Max = VariableModuleIndices[7] == VariableModuleIndices[0] ?
+                                                0 :
+                                                maxModuleCount
+                                                - var0Count
+                                                - var1Count
+                                                - var2Count
+                                                - var3Count
+                                                - var4Count
+                                                - var5Count
+                                                - var6Count;
+                                            for (float var7Count = 0; var7Count <= var7Max; var7Count++)
+                                            {
+                                                float var8Max = VariableModuleIndices[8] == VariableModuleIndices[0] ?
+                                                    0 :
+                                                    maxModuleCount
+                                                    - var0Count
+                                                    - var1Count
+                                                    - var2Count
+                                                    - var3Count
+                                                    - var4Count
+                                                    - var5Count
+                                                    - var6Count
+                                                    - var7Count;
+                                                for (float var8Count = 0; var8Count <= var8Max; var8Count++)
+                                                {
+                                                    yield return new ModuleConfig
+                                                    {
+                                                        HeadIndex = HeadList[headIndex],
+                                                        VariableModCounts =
+                                                        [
+                                                            var0Count,
+                                                                    var1Count,
+                                                                    var2Count,
+                                                                    var3Count,
+                                                                    var4Count,
+                                                                    var5Count,
+                                                                    var6Count,
+                                                                    var7Count,
+                                                                    var8Count
+                                                        ]
+                                                    };
                                                 }
                                             }
                                         }
@@ -613,6 +734,181 @@ namespace ApsCalcUI
         }
 
         /// <summary>
+        /// Helper function for generating clipped 2D grid of possible casing combinations
+        /// </summary>
+        /// <param name="rg">Current railgun casing count</param>
+        /// <param name="minGP">Min GP casing count</param>
+        /// <param name="minRG">Min RG casing count</param>
+        /// <returns>Min GP casing count for current row</returns>
+        static float CalculateGPLeftBound(float rg, float minGP, float minRG)
+        {
+            if (minRG == 0f) return 0; // chart is 1D on GP axis
+            if (rg <= minRG) return minGP * (1f - rg / minRG); // inner diagonal between (minGP, 0) and (0, minRG)
+            return 0f; // RG axis
+        }
+
+        /// <summary>
+        /// Helper function for generating clipped 2D grid of possible casing combinations
+        /// </summary>
+        /// <param name="rg">Current railgun casing count</param>
+        /// <param name="maxGP">Max GP casing count</param>
+        /// <param name="maxRG">Max RG casing count</param>
+        /// <returns>Max GP casing count for current row</returns>
+        static float CalculateGPRightBound(float rg, float maxGP, float maxRG)
+        {
+            if (maxRG == 0) return maxGP; // chart is 1D on GP axis
+            return maxGP * (1f - rg / maxRG); // outer diagonal between (maxGP, 0) and (0, maxRG)
+        }
+
+        /// <summary>
+        /// Generates 2D grid of points on (gpCount, rgCount) axes
+        /// Note that output grid is not aligned to axes, but is skewed according to slope of line between (minGP, 0) and (0, minRG)
+        /// </summary>
+        /// <param name="minGP">Min GP casing count</param>
+        /// <param name="maxGP">Max GP casing count</param>
+        /// <param name="minRG">Min RG casing count</param>
+        /// <param name="maxRG">Max RG casing count</param>
+        /// <param name="spacing">Interval between points</param>
+        /// <returns>Skewed grid of points representing combinations of casing counts</returns>
+        static List<(float gpCount, float rgCount)> GenerateCasingGrid(float minGP, float maxGP, float minRG, float maxRG, float spacing)
+        {
+            List<(float gpCount, float rgCount)> casingGrid = [];
+            for (float rgCount = 0; rgCount < maxRG; rgCount += MathF.Min(spacing, maxRG - rgCount))
+            {
+                float gpLeft = CalculateGPLeftBound(rgCount, minGP, minRG);
+                float gpRight = CalculateGPRightBound(rgCount, maxGP, maxRG);
+                for (float  gpCount = gpLeft; gpCount < gpRight; gpCount += MathF.Min(spacing, maxGP - gpCount))
+                {
+                    casingGrid.Add((gpCount, rgCount));
+                }
+            }
+
+            return casingGrid;
+        }
+
+        /// <summary>
+        /// Optimize casing counts by treating (gp, rg) as a 2D heatmap and searching with progressively finer grids to find peaks
+        /// </summary>
+        /// <returns>Shortlist of shells to test</returns>
+        List<Shell> FindPeakCasingConfigurations()
+        {
+            List<Shell> shellList = [];
+
+            foreach (ModuleConfig modConfig in GenerateModConfigs())
+            {
+                Shell shellUnderTesting = new(
+                    BarrelCount,
+                    Gauge,
+                    GaugeMultiplier,
+                    false,
+                    Module.AllModules[modConfig.HeadIndex],
+                    BaseModule,
+                    RegularClipsPerLoader,
+                    RegularInputsPerLoader,
+                    BeltfedClipsPerLoader,
+                    BeltfedInputsPerLoader,
+                    UsesAmmoEjector,
+                    0, // no casings yet
+                    0, // no casings yet
+                    RateOfFireRpm,
+                    GunUsesRecoilAbsorbers,
+                    FiringPieceIsDif
+                    );
+                FixedModuleCounts.CopyTo(shellUnderTesting.BodyModuleCounts, 0);
+
+                // Add variable modules
+                for (int i = 0; i < modConfig.VariableModCounts.Length; i++)
+                {
+                    int moduleIndex = VariableModuleIndices[i];
+                    float moduleCount = modConfig.VariableModCounts[i];
+                    shellUnderTesting.BodyModuleCounts[moduleIndex] += moduleCount;
+                }
+
+                shellUnderTesting.CalculateLengths();
+                bool lengthWithinBounds = true;
+                if (LimitBarrelLength
+                    && shellUnderTesting.ProjectileLength
+                        > shellUnderTesting.CalculateMaxProjectileLengthForInaccuracy(MaxBarrelLengthInM, MaxInaccuracy))
+                {
+                    lengthWithinBounds = false;
+                }
+                if (shellUnderTesting.TotalLength <= MinShellLength || shellUnderTesting.TotalLength > MaxShellLength)
+                {
+                    lengthWithinBounds = false;
+                }
+
+                if (lengthWithinBounds)
+                {
+                    shellUnderTesting.GetModuleCounts();
+                    TargetArmorScheme.CalculateLayerAC();
+
+                    // Determine which brackets to test
+                    List<LoaderBracket> bracketsToTest = [];
+                    float minLength = MathF.Max(MinShellLength, shellUnderTesting.ProjectileLength);
+                    float maxLength = MathF.Min(MaxShellLength, shellUnderTesting.ProjectileLength);
+                    foreach (LoaderBracket bracket in LoaderBrackets)
+                    {
+                        if (bracket.Overlaps(minLength, maxLength))
+                        {
+                            bracketsToTest.Add(bracket);
+                        }
+                    }
+
+                    // Global minimum casing counts (assuming 0 casings of other type)
+                    float minCasingCountForLength = (MinShellLength - shellUnderTesting.ProjectileLength) / Gauge;
+                    shellUnderTesting.CalculateVelocityModifier();
+                    float minRecoilForVelocityAndRange = shellUnderTesting.CalculateMinRecoilForVelocityandRange(MinVelocityInput, MinEffectiveRangeInput);
+                    float minGPForVelocityAndRange = MathF.Max(0, minRecoilForVelocityAndRange / shellUnderTesting.GPRecoilPerCasing);
+                    float globalMinGPCount = MathF.Max(minGPForVelocityAndRange, minCasingCountForLength);
+
+                    shellUnderTesting.CalculateMaxDraw();
+                    float minDrawFromCasings = minRecoilForVelocityAndRange - shellUnderTesting.MaxDrawShell;
+                    float drawPerCasing = shellUnderTesting.DrawPerProjectileModule * shellUnderTesting.RGCasingDrawMultiplier;
+                    float minRGForVelocityAndRange = MathF.Max(0, minDrawFromCasings / drawPerCasing);
+                    float globalMinRGCount = MathF.Max(minRGForVelocityAndRange, minCasingCountForLength);
+
+                    // Global maximum casing counts
+                    float maxCasingCountForModule = 20f - shellUnderTesting.ModuleCountTotal;
+                    float maxCasingCountForLength = (MaxShellLength - shellUnderTesting.ProjectileLength) / Gauge;
+                    float maxRecoil = GunUsesRecoilAbsorbers ?
+                        MaxRecoilInput
+                        : MathF.Min(MaxRecoilInput, shellUnderTesting.CalculateMaxRecoilForInaccuracy(MaxBarrelLengthInM, MaxInaccuracy));
+                    float maxGPCountForRecoil = maxRecoil / shellUnderTesting.GPRecoilPerCasing;
+                    float globalMaxGPCount = MathF.Min(maxGPCountForRecoil, maxCasingCountForLength);
+                    globalMaxGPCount = MathF.Min(MaxGPInput, globalMaxGPCount);
+                    globalMaxGPCount = MathF.Min(maxCasingCountForModule, globalMaxGPCount);
+
+                    float maxRGCasingRecoil = maxRecoil / shellUnderTesting.RGCasingFeltRecoilMultiplier;
+                    float maxRGCountForRecoil = maxRGCasingRecoil / drawPerCasing;
+                    float globalMaxRGCount = MathF.Min(maxRGCountForRecoil, maxCasingCountForLength);
+                    globalMaxRGCount = MathF.Min(MaxRGInput, globalMaxRGCount);
+                    globalMaxRGCount = MathF.Min(maxCasingCountForModule, globalMaxRGCount);
+
+
+                    foreach (LoaderBracket bracket in bracketsToTest)
+                    {
+                        float minCasingCountForBracket = MathF.Max(0, (bracket.minLengthMMExclusive - shellUnderTesting.ProjectileLength) / Gauge + 0.01f);
+                        float minGPCount = MathF.Max(minCasingCountForBracket, globalMinGPCount);
+                        float minRGCount = MathF.Max(minCasingCountForBracket, globalMinRGCount);
+                        float maxCasingCount = MathF.Min(maxCasingCountForModule, (bracket.maxLengthMMInclusive - shellUnderTesting.ProjectileLength) / Gauge);
+
+                        float maxGPCount = MathF.Min(maxCasingCount, MaxGP);
+                        maxGPCount = MathF.Min(maxGPCount, globalMaxGPCount);
+                        float maxRGCount = MathF.Min(maxCasingCount, MaxRGInput);
+                        maxRGCount = MathF.Min(maxRGCount, globalMaxRGCount);
+
+                        // Treat all possible combinations of GP and RG casings as 2D heatmap to be searched for peaks
+                        float gridSize = 1f;
+                        List<(float gpCount, float rgCount)> initialGrid = GenerateCasingGrid(minGPCount, maxGPCount, minRGCount, maxRGCount, gridSize);
+
+
+                    }
+                }
+            }
+            return shellList;
+        }
+
+        /// <summary>
         /// Iterates over possible configurations and stores the best according to test parameters
         /// </summary>
         public void ShellTest()
@@ -672,10 +968,10 @@ namespace ApsCalcUI
                     
                     // Physical draw limit
                     float maxDraw = MathF.Min(shellUnderTesting.MaxDrawShell, MaxDrawInput);
-                    // Limit by recoil. Projectile draw is 1 : 1 with recoil; draw applied to RG casings is 0.6 : 1
+                    // Limit by recoil. Projectile draw is 1 : 1 with recoil; draw applied to RG casings is affected by multiplier
                     float maxRailRecoil = MaxRecoilInput - shellUnderTesting.GPRecoil;
-                    float maxCasingDrawForRecoil = MathF.Min(maxRailRecoil / 0.6f, shellUnderTesting.MaxDrawCasing);
-                    float maxCasingRecoil = maxCasingDrawForRecoil * 0.6f;
+                    float maxCasingDrawForRecoil = MathF.Min(maxRailRecoil / shellUnderTesting.RGCasingFeltRecoilMultiplier, shellUnderTesting.MaxDrawCasing);
+                    float maxCasingRecoil = maxCasingDrawForRecoil * shellUnderTesting.RGCasingFeltRecoilMultiplier;
                     float maxProjectileDrawForRecoil = maxRailRecoil - maxCasingRecoil;
                     float maxDrawForRecoil = maxCasingDrawForRecoil + maxProjectileDrawForRecoil;
                     maxDraw = MathF.Min(maxDraw, maxDrawForRecoil);
@@ -744,7 +1040,6 @@ namespace ApsCalcUI
                                 int modIndex = 0;
                                 foreach (float modCount in shellUnderTestingBelt.BodyModuleCounts)
                                 {
-                                    // Debug.WriteLine("Mod index: " + modIndex + ": " + Module.AllModules[modIndex].Name + ": " + shellUnderTestingBelt.BodyModuleCounts[modIndex]);
                                     if (Module.AllModules[modIndex] == Module.Defuse)
                                     {
                                         shellUnderTestingBelt.BodyModuleCounts[modIndex] = 0f;
@@ -1222,7 +1517,7 @@ namespace ApsCalcUI
             }
 
             // Remove duplicate variable mod indices
-            List<int> uniqueVarModIndices = VariableModuleIndices.Distinct().ToList();
+            List<int> uniqueVarModIndices = [.. VariableModuleIndices.Distinct()];
             writer.WriteLine("Variable module(s):");
             foreach (int index in uniqueVarModIndices)
             {
