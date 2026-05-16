@@ -4,6 +4,7 @@ using System;
 using System.Linq;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Windows.Forms;
 
 namespace ApsCalcUITests
 {
@@ -626,13 +627,110 @@ namespace ApsCalcUITests
             float maxGP = 8f;
             float minRG = 1.5f;
             float maxRG = 7f;
+            float minCasings = 2f;
+            float maxCasings = 8f;
             float spacing = 1f;
 
-            List<(float gpCount, float rgCount)> testGrid = ShellCalc.GenerateCasingGrid(minGP, maxGP, minRG, maxRG, spacing);
-            foreach ((float gpCount, float rgCount) casingCounts in testGrid)
+            // Bottom left
+            float testGP = minGP + spacing * 0.3f;
+            float testRG = minRG + spacing * 0.3f;
+
+            var testNeighbors = ShellCalc.GenerateNeighbors(testGP, testRG, minGP, maxGP, minRG, maxRG, minCasings, maxCasings, spacing);
+            Console.WriteLine("testGP: " + testGP);
+            Console.WriteLine("testRG: " + testRG);
+            Console.WriteLine("spacing: " + spacing);
+            Console.WriteLine("neighbors: " + testNeighbors.Count);
+            foreach (var (gp, rg) in testNeighbors)
             {
-                Console.WriteLine("gp: " + casingCounts.gpCount + ". rg: " + casingCounts.rgCount);
+                Console.WriteLine();
+                float totalCasings = gp + rg;
+                Console.WriteLine("gp: " + gp);
+                Console.WriteLine("rg: " + rg);
+                Console.WriteLine("total: " + totalCasings);
+                Console.WriteLine("minTest: " + (gp + rg >= minCasings));
+                Console.WriteLine("maxTest: " + (gp + rg <= maxCasings));
+                Assert.IsTrue(gp + rg >= minCasings);
+                Assert.IsTrue(gp + rg <= maxCasings);
             }
+
+            // Top left
+            testRG = maxRG - spacing * 0.3f;
+
+            testNeighbors = ShellCalc.GenerateNeighbors(testGP, testRG, minGP, maxGP, minRG, maxRG, minCasings, maxCasings, spacing);
+            Console.WriteLine("--------");
+            Console.WriteLine("testGP: " + testGP);
+            Console.WriteLine("testRG: " + testRG);
+            Console.WriteLine("spacing: " + spacing);
+            Console.WriteLine("neighbors: " + testNeighbors.Count);
+            foreach (var (gp, rg) in testNeighbors)
+            {
+                Console.WriteLine();
+                float totalCasings = gp + rg;
+                Console.WriteLine("gp: " + gp);
+                Console.WriteLine("rg: " + rg);
+                Console.WriteLine("total: " + totalCasings);
+                Console.WriteLine("minTest: " + (gp + rg >= minCasings));
+                Console.WriteLine("maxTest: " + (gp + rg <= maxCasings));
+                Assert.IsTrue(gp + rg >= minCasings);
+                Assert.IsTrue(gp + rg <= maxCasings);
+            }
+
+            // Top right
+            testGP = maxGP - spacing * 0.3f;
+
+            testNeighbors = ShellCalc.GenerateNeighbors(testGP, testRG, minGP, maxGP, minRG, maxRG, minCasings, maxCasings, spacing);
+            Console.WriteLine("--------");
+            Console.WriteLine("testGP: " + testGP);
+            Console.WriteLine("testRG: " + testRG);
+            Console.WriteLine("spacing: " + spacing);
+            Console.WriteLine("neighbors: " + testNeighbors.Count);
+            foreach (var (gp, rg) in testNeighbors)
+            {
+                Console.WriteLine();
+                float totalCasings = gp + rg;
+                Console.WriteLine("gp: " + gp);
+                Console.WriteLine("rg: " + rg);
+                Console.WriteLine("total: " + totalCasings);
+                Console.WriteLine("minTest: " + (gp + rg >= minCasings));
+                Console.WriteLine("maxTest: " + (gp + rg <= maxCasings));
+                Assert.IsTrue(gp + rg >= minCasings);
+                Assert.IsTrue(gp + rg <= maxCasings);
+            }
+
+            // Bottom right
+            testGP = minGP + spacing * 0.3f;
+
+            testNeighbors = ShellCalc.GenerateNeighbors(testGP, testRG, minGP, maxGP, minRG, maxRG, minCasings, maxCasings, spacing);
+            Console.WriteLine("--------");
+            Console.WriteLine("testGP: " + testGP);
+            Console.WriteLine("testRG: " + testRG);
+            Console.WriteLine("spacing: " + spacing);
+            Console.WriteLine("neighbors: " + testNeighbors.Count);
+            foreach (var (gp, rg) in testNeighbors)
+            {
+                Console.WriteLine();
+                float totalCasings = gp + rg;
+                Console.WriteLine("gp: " + gp);
+                Console.WriteLine("rg: " + rg);
+                Console.WriteLine("total: " + totalCasings);
+                Console.WriteLine("minTest: " + (gp + rg >= minCasings));
+                Console.WriteLine("maxTest: " + (gp + rg <= maxCasings));
+                Assert.IsTrue(gp + rg >= minCasings);
+                Assert.IsTrue(gp + rg <= maxCasings);
+            }
+
+            /*
+            List<(float gpCount, float rgCount)> testGrid = ShellCalc.GenerateCasingGrid(minGP, maxGP, minRG, maxRG, spacing);
+            foreach ((float gpCount, float rgCount) in testGrid)
+            {
+                Console.WriteLine("gp: " + gpCount + " rg: " + rgCount);
+            }
+
+            Assert.Contains((minGP, 0), testGrid);
+            Assert.Contains((maxGP, 0), testGrid);
+            Assert.Contains((0, minRG), testGrid);
+            Assert.Contains((0, maxRG), testGrid);
+            */
         }
     }
 }

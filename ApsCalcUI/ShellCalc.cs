@@ -8,6 +8,8 @@ using System.Diagnostics;
 using System.Reflection.Metadata.Ecma335;
 using System.DirectoryServices;
 using System.Runtime.Intrinsics.X86;
+using Microsoft.VisualBasic.Logging;
+using System.DirectoryServices.ActiveDirectory;
 
 namespace ApsCalcUI
 {
@@ -19,10 +21,10 @@ namespace ApsCalcUI
         public float RGCount;
     }
 
-    readonly record struct LoaderBracket(float minLengthMMExclusive, float maxLengthMMInclusive)
+    readonly record struct LoaderBracket(float MinLengthMMExclusive, float MaxLengthMMInclusive, bool IsBelt)
     {
         public bool Overlaps(float min, float max)
-            => minLengthMMExclusive < max && maxLengthMMInclusive >= min;
+            => MinLengthMMExclusive < max && MaxLengthMMInclusive >= min;
     }
 
     // Damage types.  Enum is faster than strings.
@@ -308,14 +310,15 @@ namespace ApsCalcUI
 
         LoaderBracket[] LoaderBrackets { get; } =
             [
-            new LoaderBracket(0, 1000),
-            new LoaderBracket(1000, 2000),
-            new LoaderBracket(2000, 3000),
-            new LoaderBracket(3000, 4000),
-            new LoaderBracket(4000, 5000),
-            new LoaderBracket(5000, 6000),
-            new LoaderBracket(6000, 7000),
-            new LoaderBracket(7000, 8000),
+            new LoaderBracket(0, 1000, true),
+            new LoaderBracket(0, 1000, false),
+            new LoaderBracket(1000, 2000, false),
+            new LoaderBracket(2000, 3000, false),
+            new LoaderBracket(3000, 4000, false),
+            new LoaderBracket(4000, 5000, false),
+            new LoaderBracket(5000, 6000, false),
+            new LoaderBracket(6000, 7000, false),
+            new LoaderBracket(7000, 8000, false),
         ];
 
         private IEnumerable<ModuleConfig> GenerateModConfigs()
@@ -733,64 +736,401 @@ namespace ApsCalcUI
             }
         }
 
+        static float ClampTo(float value, float min, float max)
+        {
+            return MathF.Max(MathF.Min(value, max), min);
+        }
+
         /// <summary>
         /// Helper function for generating clipped 2D grid of possible casing combinations
+        /// Finds lowest valid X value for current Y
         /// </summary>
         /// <param name="rg">Current railgun casing count</param>
         /// <param name="minGP">Min GP casing count</param>
         /// <param name="minRG">Min RG casing count</param>
+        /// <param name="minCasings">Min total casings</param>
+        /// <param name="maxCasings">Max total casings</param>
         /// <returns>Min GP casing count for current row</returns>
-        static float CalculateGPLeftBound(float rg, float minGP, float minRG)
+        static float CalculateGPLeftBound(float rg, float minGP, float minRG, float minCasings, float maxCasings)
         {
-            if (minRG == 0f) return minGP; // chart is 1D on GP axis
-            if (rg <= minRG) return minGP * (1f - rg / minRG); // inner diagonal between (minGP, 0) and (0, minRG)
-            return 0f; // RG axis
+            float gpLeft;
+            if (minRG == 0f)
+            {
+                gpLeft = minGP;
+            }
+            else if (rg <= minRG)
+            {
+                gpLeft = minGP * (1f - rg / minRG); // inner diagonal between (minGP, 0) and (0, minRG)
+            }
+            else
+            {
+                gpLeft = 0f; // RG axis between (0, minRG) and (0, maxRG)
+            }
+            // gpLeft = ClampTo(gpLeft, minCasings - rg, maxCasings - rg);
+            return gpLeft;
         }
 
         /// <summary>
         /// Helper function for generating clipped 2D grid of possible casing combinations
+        /// Finds highest valid X value for current Y
         /// </summary>
         /// <param name="rg">Current railgun casing count</param>
         /// <param name="maxGP">Max GP casing count</param>
         /// <param name="maxRG">Max RG casing count</param>
+        /// <param name="minCasings">Min total casings</param>
+        /// <param name="maxCasings">Max total casings</param>
         /// <returns>Max GP casing count for current row</returns>
-        static float CalculateGPRightBound(float rg, float maxGP, float maxRG)
+        static float CalculateGPRightBound(float rg, float maxGP, float maxRG, float minCasings, float maxCasings)
         {
-            if (maxRG == 0) return maxGP; // chart is 1D on GP axis
-            return maxGP * (1f - rg / maxRG); // outer diagonal between (maxGP, 0) and (0, maxRG)
+            float gpRight = maxRG == 0 ?
+                maxGP // graph is 1D on GP axis
+                : maxGP * (1f - rg / maxRG); // outer diagonal
+            // gpRight = ClampTo(gpRight, minCasings - rg, maxCasings - rg);
+            return gpRight;
         }
 
         /// <summary>
-        /// Generates 2D grid of points on (gpCount, rgCount) axes
-        /// Note that output grid is not aligned to axes, but is skewed according to slope of line between (minGP, 0) and (0, minRG)
+        /// Helper function for generating clipped 2D grid of possible casing combinations
+        /// Finds lowest valid Y value for current X
         /// </summary>
-        /// <param name="minGP">Min GP casing count</param>
-        /// <param name="maxGP">Max GP casing count</param>
+        /// <param name="gp">Current GP casing count</param>
         /// <param name="minRG">Min RG casing count</param>
-        /// <param name="maxRG">Max RG casing count</param>
-        /// <param name="spacing">Interval between points</param>
-        /// <returns>Skewed grid of points representing combinations of casing counts</returns>
-        public static List<(float gpCount, float rgCount)> GenerateCasingGrid(float minGP, float maxGP, float minRG, float maxRG, float spacing)
+        /// <param name="minGP">Min GP casing count</param>
+        /// <param name="minCasings">Min total casings</param>
+        /// <param name="maxCasings">Max total casings</param>
+        /// <returns>Min RG casing count for current column</returns>
+        static float CalculateRGLowerBound(float gp, float minRG, float minGP, float minCasings, float maxCasings)
         {
-            List<(float gpCount, float rgCount)> casingGrid = [];
-            for (float rgCount = 0; rgCount < maxRG; rgCount += MathF.Min(spacing, maxRG - rgCount))
+            float rgLower;
+            if (minGP == 0f)
             {
-                float gpLeft = CalculateGPLeftBound(rgCount, minGP, minRG);
-                float gpRight = CalculateGPRightBound(rgCount, maxGP, maxRG);
-                for (float  gpCount = gpLeft; gpCount < gpRight; gpCount += MathF.Min(spacing, gpRight - gpCount))
+                rgLower = minRG;
+            }
+            else if (gp <= minGP)
+            {
+                rgLower = minRG * (1f - gp / minGP); // inner diagonal
+            }
+            else
+            {
+                rgLower = 0f; // GP axis between (minGP, 0) and (maxGP, 0)
+            }
+            // rgLower = ClampTo(rgLower, minCasings - gp, maxCasings - gp);
+            return rgLower;
+        }
+
+        /// <summary>
+        /// Helper function for generating clipped 2D grid of possible casing combinations
+        /// Finds highest valid Y value for current X
+        /// </summary>
+        /// <param name="gp">Current GP casing count</param>
+        /// <param name="maxRG">Max RG casing count</param>
+        /// <param name="maxGP">Max GP casing count</param>
+        /// <param name="minCasings">Min total casings</param>
+        /// <param name="maxCasings">Max total casings</param>
+        /// <returns>Max RG casing count for current column</returns>
+        static float CalculateRGUpperBound(float gp, float maxRG, float maxGP, float minCasings, float maxCasings)
+        {
+            float rgUpper = maxGP == 0f ?
+                maxRG // chart is 1D on RG axis
+                : maxGP * (1f - gp / maxGP); // outer diagonal
+            // rgUpper = ClampTo(rgUpper, minCasings - gp, maxCasings - gp);
+            return rgUpper;
+        }
+
+        /// <summary>
+        /// Generates adjacent points on 2D graph of possible casing configurations
+        /// </summary>
+        /// <param name="gp">Current GP casing count (x)</param>
+        /// <param name="rg">Current RG casing count (y)</param>
+        /// <param name="minGP">Min GP casing count if 0 RG</param>
+        /// <param name="maxGP">Max GP casing count</param>
+        /// <param name="minRG">Min RG casing count if 0 GP</param>
+        /// <param name="maxRG">Max RG casing count</param>
+        /// <param name="minCasings">Min total casings</param>
+        /// <param name="maxCasings">Max total casings</param>
+        /// <param name="spacing">Max interval between points</param>
+        /// <returns>HashSet of up to eight valid neighbors</returns>
+        public static HashSet<(float gp, float rg)> GenerateNeighbors(
+            float gp, 
+            float rg, 
+            float minGP, 
+            float maxGP, 
+            float minRG, 
+            float maxRG, 
+            float minCasings, 
+            float maxCasings, 
+            float spacing)
+        {
+            HashSet<(float gp, float rg)> neighborSet = [];
+            // same row, left and right
+            float leftGP = MathF.Max(ClampTo(gp - spacing, minCasings - rg, maxCasings - rg),
+                CalculateGPLeftBound(rg, minGP, minRG, minCasings, maxCasings));
+            float rightGP = MathF.Min(ClampTo(gp + spacing, minCasings - rg, maxCasings - rg),
+                CalculateGPRightBound(rg, maxGP, maxRG, minCasings, maxCasings));
+            // same column, up and down
+            float bottomRG = MathF.Max(ClampTo(rg - spacing, minCasings - gp, maxCasings - gp),
+                CalculateRGLowerBound(gp, minRG, minGP, minCasings, maxCasings));
+            float topRG = MathF.Min(ClampTo(rg + spacing, minCasings - gp, maxCasings - gp),
+                CalculateRGUpperBound(gp, maxRG, maxGP, minCasings, maxCasings));
+            // corners
+            float topLeftRG = MathF.Min(maxRG, rg + spacing);
+            float topLeftGP = MathF.Max(ClampTo(gp - spacing, minCasings - topLeftRG, maxCasings - topLeftRG),
+                CalculateGPLeftBound(topLeftRG, minGP, minRG, minCasings, maxCasings));
+            float bottomRightRG = MathF.Max(minRG, rg - spacing);
+            float bottomRightGP = MathF.Min(ClampTo(gp + spacing, minCasings - bottomRightRG, maxCasings - bottomRightRG),
+                CalculateGPRightBound(bottomRightRG, maxGP, maxRG, minCasings, maxCasings));
+            float topRightGP = MathF.Min(maxGP, gp + spacing);
+            float topRightRG = MathF.Min(ClampTo(rg + spacing, minCasings - topRightGP, maxCasings - topRightGP),
+                CalculateRGUpperBound(topRightGP, maxRG, maxGP, minCasings, maxCasings));
+            float bottomLeftGP = MathF.Max(minGP, gp - spacing);
+            float bottomLeftRG = MathF.Max(ClampTo(rg - spacing, minCasings - bottomLeftGP, maxCasings - bottomLeftGP),
+                CalculateRGLowerBound(bottomLeftGP, minRG, minGP, minCasings, maxCasings));
+
+            neighborSet.Add((leftGP, rg));
+            neighborSet.Add((rightGP, rg));
+            neighborSet.Add((gp, bottomRG));
+            neighborSet.Add((gp, topRG));
+            neighborSet.Add((topLeftGP, topLeftRG));
+            neighborSet.Add((bottomRightGP, bottomRightRG));
+            neighborSet.Add((topRightGP, topRightRG));
+            neighborSet.Add((bottomLeftGP, bottomLeftRG));
+
+            return neighborSet;
+        }
+
+        bool CheckForPeakhood(Module head, float[] variableModuleCounts, (float gp, float rg) centerPoint, HashSet<(float gp, float rg)> neighborSet, bool isBelt)
+        {
+            bool centerIsPeak = true;
+
+            float centerScore = ShellTest2(head, variableModuleCounts, centerPoint.gp, centerPoint.rg, isBelt);
+
+            foreach ((float gp, float rg) in neighborSet)
+            {
+                float neighborScore = ShellTest2(head, variableModuleCounts, gp, rg, isBelt);
+                if (neighborScore > centerScore)
                 {
-                    casingGrid.Add((gpCount, rgCount));
+                    centerIsPeak = false;
+                    break;
                 }
             }
 
-            return casingGrid;
+            return centerIsPeak;
         }
 
         /// <summary>
-        /// Optimize casing counts by treating (gp, rg) as a 2D heatmap and searching with progressively finer grids to find peaks
+        /// Map out entire neighborhood surrounding given peak value, using max bounds to guarantee no missed points
         /// </summary>
-        /// <returns>Shortlist of shells to test</returns>
-        List<Shell> FindPeakCasingConfigurations()
+        /// <param name="centerPoint">Center (gp, rg) coördinate</param>
+        /// <param name="neighborhood">List of neighbors created by previous search</param>
+        /// <param name="spacing">Interval between points</param>
+        /// <returns>Every point within max bounds, respecting graph limits</returns>
+        IEnumerable<(float gp, float rg)> GenerateLocalSearchPoints ((float gp, float rg) centerPoint, HashSet<(float gp, float rg)> neighborhood, float spacing)
+        {
+
+        }
+
+        /// <summary>
+        /// Find DPS/Cost or DPS/Volume of given shell
+        /// </summary>
+        /// <param name="gpCount">GP casing count</param>
+        /// <param name="rgCount">RG casing count</param>
+        /// <returns>DPS per Cost or DPS per Volume, depending on test type</returns>
+        float ShellTest2(Module head, float[] variableModCounts,  float gpCount, float rgCount, bool isBelt)
+        {
+            float score = 0;
+            float beltfedScore = 0;
+            Shell shellUnderTesting = new(
+                BarrelCount,
+                Gauge,
+                GaugeMultiplier,
+                false,
+                head,
+                BaseModule,
+                RegularClipsPerLoader,
+                RegularInputsPerLoader,
+                BeltfedClipsPerLoader,
+                BeltfedInputsPerLoader,
+                UsesAmmoEjector,
+                gpCount,
+                rgCount,
+                RateOfFireRpm,
+                GunUsesRecoilAbsorbers,
+                FiringPieceIsDif
+                );
+            FixedModuleCounts.CopyTo(shellUnderTesting.BodyModuleCounts, 0);
+
+            // Add variable modules
+            for (int i = 0; i < variableModCounts.Length; i++)
+            {
+                int moduleIndex = VariableModuleIndices[i];
+                float moduleCount = variableModCounts[i];
+                shellUnderTesting.BodyModuleCounts[moduleIndex] += moduleCount;
+            }
+
+            shellUnderTesting.GetModuleCounts();
+            shellUnderTesting.CalculateLengths();
+            shellUnderTesting.CalculateVelocityModifier();
+            shellUnderTesting.CalculateMaxDraw();
+
+            // Physical draw limit
+            float maxDraw = MathF.Min(shellUnderTesting.MaxDrawShell, MaxDrawInput);
+            // Limit by recoil. Projectile draw is 1 : 1 with recoil; draw applied to RG casings is affected by multiplier
+            float maxRailRecoil = MaxRecoilInput - shellUnderTesting.GPRecoil;
+            float maxCasingDrawForRecoil = MathF.Min(maxRailRecoil / shellUnderTesting.RGCasingFeltRecoilMultiplier, shellUnderTesting.MaxDrawCasing);
+            float maxCasingRecoil = maxCasingDrawForRecoil * shellUnderTesting.RGCasingFeltRecoilMultiplier;
+            float maxProjectileDrawForRecoil = maxRailRecoil - maxCasingRecoil;
+            float maxDrawForRecoil = maxCasingDrawForRecoil + maxProjectileDrawForRecoil;
+            maxDraw = MathF.Min(maxDraw, maxDrawForRecoil);
+            // Limit by inaccuracy
+            if (!shellUnderTesting.GunUsesRecoilAbsorbers)
+            {
+                maxDraw = MathF.Min(maxDraw, shellUnderTesting.CalculateMaxDrawForInaccuracy(MaxBarrelLengthInM, MaxInaccuracy, shellUnderTesting.MaxDrawCasing));
+            }
+            float minDraw = shellUnderTesting.CalculateMinDrawForVelocityandRange(MinVelocityInput, MinEffectiveRangeInput);
+
+            if (maxDraw >= minDraw)
+            {
+                shellUnderTesting.CalculateReloadTime(TestIntervalSeconds);
+                shellUnderTesting.CalculateDamageModifierByType(DamageType);
+                shellUnderTesting.SabotAngleMultiplier = SabotAngleMultiplier;
+                shellUnderTesting.NonSabotAngleMultiplier = NonSabotAngleMultiplier;
+                shellUnderTesting.CalculateDamageByType(DamageType, FragAngleMultiplier);
+
+                // Users can enter minimum disruptor values even when optimizing for other damage types
+                if (MinDisruptor > 0 && DamageType != DamageType.Disruptor)
+                {
+                    shellUnderTesting.CalculateDamageByType(DamageType.EMP, FragAngleMultiplier);
+                    shellUnderTesting.CalculateDamageByType(DamageType.Disruptor, FragAngleMultiplier);
+                }
+
+                if ((shellUnderTesting.DamageDict[DamageType.Disruptor] >= MinDisruptor) || MinDisruptor == 0)
+                {
+                    shellUnderTesting.CalculateCooldownTime();
+                    shellUnderTesting.CalculateCoolerVolumeAndCost();
+                    shellUnderTesting.CalculateLoaderVolumeAndCost();
+                    shellUnderTesting.CalculateVariableVolumesAndCosts(TestIntervalSeconds, StoragePerVolume, StoragePerCost);
+
+                    // Determine which "DPS Per" dictionary will be used for testing
+                    Dictionary<DamageType, float> referenceDict = TestType == TestType.DpsPerVolume ?
+                        shellUnderTesting.DpsPerVolumeDict : shellUnderTesting.DpsPerCostDict;
+
+                    // Beltfed testing
+                    if (isBelt)
+                    {
+                        Shell shellUnderTestingBelt = new(
+                            BarrelCount,
+                            Gauge,
+                            GaugeMultiplier,
+                            false,
+                            head,
+                            BaseModule,
+                            RegularClipsPerLoader,
+                            RegularInputsPerLoader,
+                            BeltfedClipsPerLoader,
+                            BeltfedInputsPerLoader,
+                            UsesAmmoEjector,
+                            gpCount,
+                            rgCount,
+                            RateOfFireRpm,
+                            GunUsesRecoilAbsorbers,
+                            FiringPieceIsDif
+                            );
+                        shellUnderTesting.BodyModuleCounts.CopyTo(shellUnderTestingBelt.BodyModuleCounts, 0);
+
+                        // Beltfed loaders cannot use ejectors
+                        int modIndex = 0;
+                        foreach (float modCount in shellUnderTestingBelt.BodyModuleCounts)
+                        {
+                            if (Module.AllModules[modIndex] == Module.Defuse)
+                            {
+                                shellUnderTestingBelt.BodyModuleCounts[modIndex] = 0f;
+                                break;
+                            }
+                            else
+                            {
+                                modIndex++;
+                            }
+                        }
+                        shellUnderTestingBelt.CalculateLengths();
+                        shellUnderTestingBelt.GetModuleCounts();
+                        shellUnderTestingBelt.CalculateRequiredBarrelLengths(MaxInaccuracy);
+                        shellUnderTestingBelt.CalculateVelocityModifier();
+                        shellUnderTestingBelt.CalculateRecoil();
+                        shellUnderTestingBelt.CalculateMaxDraw();
+                        shellUnderTestingBelt.CalculateReloadTime(TestIntervalSeconds);
+                        shellUnderTestingBelt.CalculateVariableVolumesAndCosts(
+                            TestIntervalSeconds,
+                            StoragePerVolume,
+                            StoragePerCost);
+                        shellUnderTestingBelt.CalculateCooldownTime();
+                        shellUnderTestingBelt.CalculateDamageModifierByType(DamageType);
+                        shellUnderTestingBelt.SabotAngleMultiplier = SabotAngleMultiplier;
+                        shellUnderTestingBelt.NonSabotAngleMultiplier = NonSabotAngleMultiplier;
+                        shellUnderTestingBelt.CalculateDamageByType(DamageType, FragAngleMultiplier);
+                        shellUnderTestingBelt.CalculateLoaderVolumeAndCost();
+                        shellUnderTestingBelt.CalculateCoolerVolumeAndCost();
+
+                        // Binary search to find optimal draw without testing every value
+                        // Determine which "DPS Per" dictionary will be used for testing
+                        Dictionary<DamageType, float> referenceDictBelt = TestType == TestType.DpsPerVolume ?
+                            shellUnderTestingBelt.DpsPerVolumeDict : shellUnderTestingBelt.DpsPerCostDict;
+                        float optimalDraw = maxDraw > 0 ?
+                            CalculateOptimalRailDraw(shellUnderTestingBelt, maxDraw, minDraw, referenceDictBelt)
+                            : 0;
+
+                        shellUnderTestingBelt.RailDraw = optimalDraw;
+                        shellUnderTestingBelt.CalculateVelocity();
+                        shellUnderTestingBelt.CalculateEffectiveRange();
+                        shellUnderTestingBelt.CalculateDpsByType(
+                            DamageType,
+                            TargetAC,
+                            TestIntervalSeconds,
+                            StoragePerVolume,
+                            StoragePerCost,
+                            EnginePpm,
+                            EnginePpv,
+                            EnginePpc,
+                            EngineUsesFuel,
+                            TargetArmorScheme,
+                            ImpactAngleFromPerpendicularDegrees);
+
+                        beltfedScore = referenceDictBelt[DamageType];
+                    }
+                    else if (!isBelt)
+                    {
+                        // Determine optimal rail draw
+                        float optimalDraw = maxDraw > 0 ?
+                            CalculateOptimalRailDraw(shellUnderTesting, maxDraw, minDraw, referenceDict)
+                            : 0;
+                        shellUnderTesting.RailDraw = optimalDraw;
+                        shellUnderTesting.CalculateVelocity();
+                        shellUnderTesting.CalculateEffectiveRange();
+                        shellUnderTesting.CalculateDpsByType(
+                            DamageType,
+                            TargetAC,
+                            TestIntervalSeconds,
+                            StoragePerVolume,
+                            StoragePerCost,
+                            EnginePpm,
+                            EnginePpv,
+                            EnginePpc,
+                            EngineUsesFuel,
+                            TargetArmorScheme,
+                            ImpactAngleFromPerpendicularDegrees);
+                        score = referenceDict[DamageType];
+                    }
+                }
+            }
+
+            return score;
+        }
+
+
+        /// <summary>
+        /// Test shells using refined search algorithm
+        /// </summary>
+        /// <returns></returns>
+        List<Shell> BigTest()
         {
             List<Shell> shellList = [];
 
@@ -859,48 +1199,86 @@ namespace ApsCalcUI
                     shellUnderTesting.CalculateVelocityModifier();
                     float minRecoilForVelocityAndRange = shellUnderTesting.CalculateMinRecoilForVelocityandRange(MinVelocityInput, MinEffectiveRangeInput);
                     float minGPForVelocityAndRange = MathF.Max(0, minRecoilForVelocityAndRange / shellUnderTesting.GPRecoilPerCasing);
-                    float globalMinGPCount = MathF.Max(minGPForVelocityAndRange, minCasingCountForLength);
 
                     shellUnderTesting.CalculateMaxDraw();
                     float minDrawFromCasings = minRecoilForVelocityAndRange - shellUnderTesting.MaxDrawShell;
                     float drawPerCasing = shellUnderTesting.DrawPerProjectileModule * shellUnderTesting.RGCasingDrawMultiplier;
                     float minRGForVelocityAndRange = MathF.Max(0, minDrawFromCasings / drawPerCasing);
-                    float globalMinRGCount = MathF.Max(minRGForVelocityAndRange, minCasingCountForLength);
 
-                    // Global maximum casing counts
+                    // Global maximum casing counts (assuming 0 casings of other type)
                     float maxCasingCountForModule = 20f - shellUnderTesting.ModuleCountTotal;
                     float maxCasingCountForLength = (MaxShellLength - shellUnderTesting.ProjectileLength) / Gauge;
                     float maxRecoil = GunUsesRecoilAbsorbers ?
                         MaxRecoilInput
                         : MathF.Min(MaxRecoilInput, shellUnderTesting.CalculateMaxRecoilForInaccuracy(MaxBarrelLengthInM, MaxInaccuracy));
+
+                    // Type-specific max casing counts
                     float maxGPCountForRecoil = maxRecoil / shellUnderTesting.GPRecoilPerCasing;
-                    float globalMaxGPCount = MathF.Min(maxGPCountForRecoil, maxCasingCountForLength);
-                    globalMaxGPCount = MathF.Min(MaxGPInput, globalMaxGPCount);
-                    globalMaxGPCount = MathF.Min(maxCasingCountForModule, globalMaxGPCount);
+                    float globalMaxGPCount = MathF.Min(maxGPCountForRecoil, MaxGP);
 
-                    float maxRGCasingRecoil = maxRecoil / shellUnderTesting.RGCasingFeltRecoilMultiplier;
-                    float maxRGCountForRecoil = maxRGCasingRecoil / drawPerCasing;
-                    float globalMaxRGCount = MathF.Min(maxRGCountForRecoil, maxCasingCountForLength);
-                    globalMaxRGCount = MathF.Min(MaxRGInput, globalMaxRGCount);
-                    globalMaxRGCount = MathF.Min(maxCasingCountForModule, globalMaxRGCount);
-
+                    float maxRGCasingDraw = maxRecoil / shellUnderTesting.RGCasingFeltRecoilMultiplier;
+                    float maxRGCountForRecoil = maxRGCasingDraw / drawPerCasing;
+                    float globalMaxRGCount = MathF.Min(maxRGCountForRecoil, MaxRGInput);
 
                     foreach (LoaderBracket bracket in bracketsToTest)
                     {
-                        float minCasingCountForBracket = MathF.Max(0, (bracket.minLengthMMExclusive - shellUnderTesting.ProjectileLength) / Gauge + 0.01f);
-                        float minGPCount = MathF.Max(minCasingCountForBracket, globalMinGPCount);
-                        float minRGCount = MathF.Max(minCasingCountForBracket, globalMinRGCount);
-                        float maxCasingCount = MathF.Min(maxCasingCountForModule, (bracket.maxLengthMMInclusive - shellUnderTesting.ProjectileLength) / Gauge);
-
-                        float maxGPCount = MathF.Min(maxCasingCount, MaxGP);
-                        maxGPCount = MathF.Min(maxGPCount, globalMaxGPCount);
-                        float maxRGCount = MathF.Min(maxCasingCount, MaxRGInput);
-                        maxRGCount = MathF.Min(maxRGCount, globalMaxRGCount);
+                        float minCasingCountForBracket = MathF.Max(0, (bracket.MinLengthMMExclusive - shellUnderTesting.ProjectileLength) / Gauge + 0.01f);
+                        float maxCasingCountForBracket = MathF.Min(maxCasingCountForModule, (bracket.MaxLengthMMInclusive - shellUnderTesting.ProjectileLength) / Gauge);
 
                         // Treat all possible combinations of GP and RG casings as 2D heatmap to be searched for peaks
                         float gridSize = 1f;
-                        List<(float gpCount, float rgCount)> initialGrid = GenerateCasingGrid(minGPCount, maxGPCount, minRGCount, maxRGCount, gridSize);
+                        HashSet<(float gp, float rg, HashSet<(float gp, float rg)>)> peakSet = [];
+                        HashSet<(float gpCount, float rgCount)> neighborSet = [];
+                        for (float rgCount = 0; rgCount <= globalMaxRGCount; rgCount += MathF.Min(gridSize, globalMaxRGCount - rgCount))
+                        {
+                            float gpLeftBound = CalculateGPLeftBound(
+                                rgCount,
+                                minGPForVelocityAndRange,
+                                minRGForVelocityAndRange,
+                                minCasingCountForBracket,
+                                maxCasingCountForBracket);
+                            float gpRightBound = CalculateGPRightBound(
+                                rgCount,
+                                globalMaxGPCount,
+                                globalMaxRGCount,
+                                minCasingCountForBracket,
+                                maxCasingCountForBracket);
 
+                            for (float gpCount = gpLeftBound; gpCount <= gpRightBound; gpCount += MathF.Min(gridSize, gpRightBound - gpCount))
+                            {
+                                neighborSet = GenerateNeighbors(
+                                    gpCount,
+                                    rgCount,
+                                    minGPForVelocityAndRange,
+                                    globalMaxGPCount,
+                                    minRGForVelocityAndRange,
+                                    globalMaxRGCount,
+                                    minCasingCountForBracket,
+                                    maxCasingCountForBracket,
+                                    gridSize);
+                                if (CheckForPeakhood(
+                                    Module.AllModules[modConfig.HeadIndex],
+                                    modConfig.VariableModCounts,
+                                    (gpCount, rgCount),
+                                    neighborSet,
+                                    bracket.IsBelt))
+                                {
+                                    peakSet.Add((gpCount, rgCount, neighborSet)); // Store neighbors for setting bounds in later search passes
+                                }
+
+                                if (gpCount == gpRightBound)
+                                {
+                                    break;
+                                }
+                            }
+
+                            if (rgCount == globalMaxRGCount)
+                            {
+                                break;
+                            }
+                        }
+
+                        // Local search to find peak centers
 
                     }
                 }
