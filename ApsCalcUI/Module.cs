@@ -106,6 +106,37 @@ namespace ApsCalcUI
             Tracer,
             GravRam
         ];
+        public static int SolidBodyIndex { get; } = Array.IndexOf(AllModules, SolidBody);
+        public static int SabotBodyIndex { get; } = Array.IndexOf(AllModules, SabotBody);
+        public static int EmpBodyIndex { get; } = Array.IndexOf(AllModules, EmpBody);
+        public static int MDBodyIndex { get; } = Array.IndexOf(AllModules, MDBody);
+        public static int FragBodyIndex { get; } = Array.IndexOf(AllModules, FragBody);
+        public static int HEBodyIndex { get; } = Array.IndexOf(AllModules, HEBody);
+        public static int FinBodyIndex { get; } = Array.IndexOf(AllModules, FinBody);
+        public static int SmokeBodyIndex { get; } = Array.IndexOf(AllModules, SmokeBody);
+        public static int IncendiaryBodyIndex { get; } = Array.IndexOf(AllModules, IncendiaryBody);
+        public static int PenDepthFuseIndex { get; } = Array.IndexOf(AllModules, PenDepthFuse);
+        public static int TimedFuseIndex { get; } = Array.IndexOf(AllModules, TimedFuse);
+        public static int IntertialFuseIndex { get; } = Array.IndexOf(AllModules, InertialFuse);
+        public static int AltitudeFuseIndex { get; } = Array.IndexOf(AllModules, AltitudeFuse);
+        public static int DefuseIndex { get; } = Array.IndexOf(AllModules, Defuse);
+        public static int GravCompensatorIndex { get; } = Array.IndexOf(AllModules, GravCompensator);
+        public static int EmpHeadIndex { get; } = Array.IndexOf(AllModules, EmpHead);
+        public static int MDHeadIndex { get; } = Array.IndexOf(AllModules, MDHead);
+        public static int FragHeadIndex { get; } = Array.IndexOf(AllModules, FragHead);
+        public static int HEHeadIndex { get; } = Array.IndexOf(AllModules, HEHead);
+        public static int ShapedChargeHeadIndex { get; } = Array.IndexOf(AllModules, ShapedChargeHead);
+        public static int APHeadIndex { get; } = Array.IndexOf(AllModules, APHead);
+        public static int SabotHeadIndex { get; } = Array.IndexOf(AllModules, SabotHead);
+        public static int HeavyHeadIndex { get; } = Array.IndexOf(AllModules, HeavyHead);
+        public static int HollowPointHeadIndex { get; } = Array.IndexOf(AllModules, HollowPoint);
+        public static int SkimmerTipIndex { get; } = Array.IndexOf(AllModules, SkimmerTip);
+        public static int DisruptorIndex { get; } = Array.IndexOf(AllModules, Disruptor);
+        public static int IncendiaryHeadIndex { get; } = Array.IndexOf(AllModules, IncendiaryHead);
+        public static int BaseBleederIndex { get; } = Array.IndexOf(AllModules, BaseBleeder);
+        public static int SupercavIndex { get; } = Array.IndexOf(AllModules, Supercav);
+        public static int TracerIndex { get; } = Array.IndexOf(AllModules, Tracer);
+        public static int GravRamIndex { get; } = Array.IndexOf(AllModules, GravRam);
 
         public static int GetBodyModuleCount()
         {

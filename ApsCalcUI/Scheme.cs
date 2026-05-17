@@ -35,7 +35,7 @@ namespace ApsCalcUI
                 }
 
                 // Update max useful AC
-                MaxAC = Math.Max(MaxAC, LayerList[layerIndex].AC);
+                MaxAC = MathF.Max(MaxAC, LayerList[layerIndex].AC);
             }
 
             // Last layer is left at default

@@ -736,6 +736,7 @@ namespace ApsCalcUI
                                 shellUnderTesting.BodyModuleCounts.CopyTo(shellUnderTestingBelt.BodyModuleCounts, 0);
 
                                 // Beltfed loaders cannot use ejectors
+
                                 int modIndex = 0;
                                 foreach (float modCount in shellUnderTestingBelt.BodyModuleCounts)
                                 {
