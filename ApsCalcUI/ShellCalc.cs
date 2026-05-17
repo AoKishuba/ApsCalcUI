@@ -324,14 +324,21 @@ namespace ApsCalcUI
         private IEnumerable<ModuleConfig> GenerateModConfigs()
         {
             float maxModuleCount = 20f - FixedModuleTotal;
-            float gpMax = MathF.Min(MaxGP, maxModuleCount);
             for (int headIndex = 0; headIndex < HeadList.Count; headIndex++)
             {
-                for (float gpCount = 0; gpCount <= gpMax; gpCount += MathF.Min(CasingIncrement, gpMax - gpCount + 0.01f))
+                // Use ints to avoid cumulative float errors
+                float gpMax = MathF.Min(MaxGP, maxModuleCount);
+                int maxGPIncrementCount = (int)Math.Floor(gpMax / CasingIncrement);
+                for (int gpIncrementCount = 0; gpIncrementCount <= maxGPIncrementCount; gpIncrementCount++)
                 {
+                    float gpCount = CasingIncrement * gpIncrementCount;
+
                     float rgMax = MathF.Min(MaxRGInput, MathF.Floor(maxModuleCount - gpCount));
-                    for (float rgCount = 0; rgCount <= rgMax; rgCount += MathF.Min(CasingIncrement, rgMax - rgCount + 0.01f))
+                    int maxRGIncrementCount = (int)Math.Floor(rgMax / CasingIncrement);
+                    for (int rgIncrementCount = 0; rgIncrementCount <= maxRGIncrementCount; rgIncrementCount++)
                     {
+                        float rgCount = CasingIncrement * rgIncrementCount;
+
                         float var0Max = maxModuleCount - gpCount - rgCount;
                         for (float var0Count = 0; var0Count <= var0Max; var0Count++)
                         {
@@ -926,7 +933,7 @@ namespace ApsCalcUI
         /// <returns>Every point within max bounds, respecting graph limits</returns>
         IEnumerable<(float gp, float rg)> GenerateLocalSearchPoints ((float gp, float rg) centerPoint, HashSet<(float gp, float rg)> neighborhood, float spacing)
         {
-
+            yield return (0, 0);
         }
 
         /// <summary>
@@ -2100,7 +2107,7 @@ namespace ApsCalcUI
                 ];
                 foreach (Shell topShell in TopDpsShells.Values)
                 {
-                    AddValueToList(totalLengthList, topShell.TotalLength, 3);
+                    AddValueToList(totalLengthList, topShell.TotalLength, 0);
                 }
                 writer.WriteLine(string.Join(ColumnDelimiter, totalLengthList));
 
@@ -2408,7 +2415,7 @@ namespace ApsCalcUI
                             ];
                             foreach (Shell topShell in TopDpsShells.Values)
                             {
-                                AddValueToList(mdExplosionRadiusList, topShell.MDExplosionRadius, 1);
+                                AddValueToList(mdExplosionRadiusList, topShell.MDExplosionRadius, 0);
                             }
                             writer.WriteLine(string.Join(ColumnDelimiter, mdExplosionRadiusList));
                         }

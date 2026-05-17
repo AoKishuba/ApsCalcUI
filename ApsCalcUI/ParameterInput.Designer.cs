@@ -1126,7 +1126,7 @@ namespace ApsCalcUI
             HeadModulesCL.FormattingEnabled = true;
             HeadModulesCL.Location = new System.Drawing.Point(13, 163);
             HeadModulesCL.Name = "HeadModulesCL";
-            HeadModulesCL.Size = new System.Drawing.Size(205, 418);
+            HeadModulesCL.Size = new System.Drawing.Size(205, 382);
             HeadModulesCL.TabIndex = 3;
             HeadModulesCL.SelectedIndexChanged += HeadModulesCL_SelectedIndexChanged;
             // 
@@ -1138,7 +1138,7 @@ namespace ApsCalcUI
             BasePanel.Controls.Add(TracerRB);
             BasePanel.Controls.Add(SupercavRB);
             BasePanel.Controls.Add(BaseBleederRB);
-            BasePanel.Location = new System.Drawing.Point(12, 599);
+            BasePanel.Location = new System.Drawing.Point(12, 586);
             BasePanel.Name = "BasePanel";
             BasePanel.Size = new System.Drawing.Size(206, 97);
             BasePanel.TabIndex = 4;
@@ -1337,7 +1337,7 @@ namespace ApsCalcUI
             VariableModulesCL.FormattingEnabled = true;
             VariableModulesCL.Location = new System.Drawing.Point(3, 16);
             VariableModulesCL.Name = "VariableModulesCL";
-            VariableModulesCL.Size = new System.Drawing.Size(147, 148);
+            VariableModulesCL.Size = new System.Drawing.Size(147, 166);
             VariableModulesCL.TabIndex = 14;
             // 
             // MaxGPLabel
@@ -1445,7 +1445,7 @@ namespace ApsCalcUI
             TargetACPanel.Controls.Add(TargetACLabel);
             TargetACPanel.Location = new System.Drawing.Point(436, 356);
             TargetACPanel.Name = "TargetACPanel";
-            TargetACPanel.Size = new System.Drawing.Size(169, 199);
+            TargetACPanel.Size = new System.Drawing.Size(169, 229);
             TargetACPanel.TabIndex = 32;
             // 
             // TargetACCL
@@ -1454,7 +1454,7 @@ namespace ApsCalcUI
             TargetACCL.FormattingEnabled = true;
             TargetACCL.Location = new System.Drawing.Point(0, 31);
             TargetACCL.Name = "TargetACCL";
-            TargetACCL.Size = new System.Drawing.Size(169, 148);
+            TargetACCL.Size = new System.Drawing.Size(169, 166);
             TargetACCL.TabIndex = 25;
             // 
             // TargetACLabel
@@ -1647,7 +1647,7 @@ namespace ApsCalcUI
             RofRpmPanel.Controls.Add(RofRpmLabel);
             RofRpmPanel.Controls.Add(RofRpmUD);
             RofRpmPanel.Enabled = false;
-            RofRpmPanel.Location = new System.Drawing.Point(41, 691);
+            RofRpmPanel.Location = new System.Drawing.Point(41, 678);
             RofRpmPanel.Name = "RofRpmPanel";
             RofRpmPanel.Size = new System.Drawing.Size(154, 40);
             RofRpmPanel.TabIndex = 58;
@@ -1725,7 +1725,7 @@ namespace ApsCalcUI
             AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             AutoScroll = true;
             BackColor = System.Drawing.SystemColors.Window;
-            ClientSize = new System.Drawing.Size(800, 746);
+            ClientSize = new System.Drawing.Size(800, 726);
             Controls.Add(VerboseOutputCB);
             Controls.Add(CasingIncrementUD);
             Controls.Add(CasingIncrementLabel);
