@@ -771,7 +771,7 @@ namespace ApsCalcUI
             {
                 float minGPForRecoil = (minTotalRecoilFromCasings - rg * drawPerRGCasing) / recoilPerGPCasing;
                 float minGPForLength = minCasingCountForLength - rg;
-                return (int)MathF.Ceiling(MathF.Min(maxGP, MathF.Max(minGPForRecoil, minGPForLength)) / spacing) * spacing;
+                return (int)MathF.Ceiling(MathF.Max(minGPForRecoil, minGPForLength)) / spacing;
             }
         }
 
@@ -1207,46 +1207,35 @@ namespace ApsCalcUI
                         }
                     }
 
-                    // Global minimum casing counts (assuming 0 casings of other type)
-                    float minCasingCountForLength = (MinShellLength - shellUnderTesting.ProjectileLength) / Gauge;
-                    shellUnderTesting.CalculateVelocityModifier();
-                    float minRecoilForVelocityAndRange = shellUnderTesting.CalculateMinRecoilForVelocityandRange(MinVelocityInput, MinEffectiveRangeInput);
-                    float minGPForVelocityAndRange = MathF.Max(0, minRecoilForVelocityAndRange / shellUnderTesting.GPRecoilPerCasing);
-
                     shellUnderTesting.CalculateMaxDraw();
-                    float minDrawFromCasings = minRecoilForVelocityAndRange - shellUnderTesting.MaxDrawShell;
-                    float drawPerCasing = shellUnderTesting.DrawPerProjectileModule * shellUnderTesting.RGCasingDrawMultiplier;
-                    float minRGForVelocityAndRange = MathF.Max(0, minDrawFromCasings / drawPerCasing);
+                    shellUnderTesting.CalculateVelocityModifier();
+                    float minShellRecoilForVelocityAndRange = shellUnderTesting.CalculateMinRecoilForVelocityandRange(MinVelocityInput, MinEffectiveRangeInput);
+                    float minCasingRecoil = minShellRecoilForVelocityAndRange - MathF.Min(MaxDrawInput, shellUnderTesting.MaxDrawShell);
 
-                    // Global maximum casing counts (assuming 0 casings of other type)
+                    float drawPerCasing = shellUnderTesting.DrawPerProjectileModule * shellUnderTesting.RGCasingDrawMultiplier;
+
                     float maxCasingCountForModule = 20f - shellUnderTesting.ModuleCountTotal;
-                    float maxCasingCountForLength = (MaxShellLength - shellUnderTesting.ProjectileLength) / Gauge;
-                    float maxRecoil = GunUsesRecoilAbsorbers ?
+                    float maxFeltRecoil = GunUsesRecoilAbsorbers ?
                         MaxRecoilInput
                         : MathF.Min(MaxRecoilInput, shellUnderTesting.CalculateMaxRecoilForInaccuracy(MaxBarrelLengthInM, MaxInaccuracy));
 
-                    // Type-specific max casing counts
-                    float maxGPCountForRecoil = maxRecoil / shellUnderTesting.GPRecoilPerCasing;
-                    float globalMaxGPCount = MathF.Min(maxGPCountForRecoil, MaxGP);
-
-                    float maxRGCasingDraw = maxRecoil / shellUnderTesting.RGCasingFeltRecoilMultiplier;
-                    float maxRGCountForRecoil = maxRGCasingDraw / drawPerCasing;
                     float feltRecoilPerCasing = shellUnderTesting.DrawPerProjectileModule
                         * shellUnderTesting.RGCasingDrawMultiplier
                         * shellUnderTesting.RGCasingFeltRecoilMultiplier;
-                    float globalMaxRGCount = MathF.Min(maxRGCountForRecoil, MaxRGInput);
 
                     foreach (LoaderBracket bracket in bracketsToTest)
                     {
-                        float minCasingCountForBracket = MathF.Max(0, (bracket.MinLengthMMExclusive - shellUnderTesting.ProjectileLength) / Gauge + 0.01f);
-                        float maxCasingCountForBracket = MathF.Min(maxCasingCountForModule, (bracket.MaxLengthMMInclusive - shellUnderTesting.ProjectileLength) / Gauge);
+                        float minLengthForBracket = MathF.Max(bracket.MinLengthMMExclusive, MinShellLength);
+                        float maxLengthForBracket = MathF.Min(bracket.MaxLengthMMInclusive, MaxShellLength);
+                        float minCasingCountForBracket = MathF.Max(0, (minLengthForBracket - shellUnderTesting.ProjectileLength) / Gauge + 0.01f);
+                        float maxCasingCountForBracket = MathF.Min(maxCasingCountForModule, (maxLengthForBracket - shellUnderTesting.ProjectileLength) / Gauge);
 
                         // Treat all possible combinations of GP and RG casings as 2D heatmap to be searched for peaks
                         float gridSize = 1f;
                         HashSet<(float gp, float rg, HashSet<(float gp, float rg)>)> peakSet = [];
                         HashSet<(float gpCount, float rgCount)> neighborSet = [];
 
-                        int maxRGIncrementCount = (int)MathF.Floor(globalMaxRGCount / gridSize);
+                        int maxRGIncrementCount = (int)MathF.Floor(MathF.Min(MaxRGInput, maxCasingCountForBracket) / gridSize);
                         for (int rgIncrementCount = 0; rgIncrementCount <= maxRGIncrementCount; rgIncrementCount++)
                         {
                             float rgCount = gridSize * rgIncrementCount;
@@ -1254,7 +1243,7 @@ namespace ApsCalcUI
                                 rgCount,
                                 drawPerCasing,
                                 shellUnderTesting.GPRecoilPerCasing,
-                                minRecoilForVelocityAndRange,
+                                minCasingRecoil,
                                 minCasingCountForBracket,
                                 MaxGP,
                                 gridSize);
@@ -1263,7 +1252,7 @@ namespace ApsCalcUI
                                 rgCount,
                                 feltRecoilPerCasing,
                                 shellUnderTesting.GPRecoilPerCasing,
-                                maxRecoil,
+                                maxFeltRecoil,
                                 maxCasingCountForBracket,
                                 MaxGP,
                                 gridSize
@@ -1271,7 +1260,7 @@ namespace ApsCalcUI
                             ClampTo(gpRightBound, minCasingCountForBracket, maxCasingCountForBracket);
 
                             int minGPIncrementCount = (int)MathF.Ceiling(gpLeftBound /  gridSize);
-                            int maxGPIncrementCount = (int)MathF.Floor(gpRightBound / gridSize);
+                            int maxGPIncrementCount = (int)MathF.Floor(MathF.Min(gpRightBound, MaxGP) / gridSize);
                             for (int gpIncrementCount = minGPIncrementCount; gpIncrementCount <= maxGPIncrementCount; gpIncrementCount++)
                             {
                                 float gpCount = gridSize * gpIncrementCount;
@@ -1279,7 +1268,15 @@ namespace ApsCalcUI
                                     gpCount,
                                     rgCount,
                                     MaxGP,
-
+                                    MaxRGInput,
+                                    minCasingRecoil,
+                                    maxFeltRecoil,
+                                    shellUnderTesting.GPRecoilPerCasing,
+                                    drawPerCasing,
+                                    feltRecoilPerCasing,
+                                    minCasingCountForBracket,
+                                    maxCasingCountForBracket,
+                                    gridSize
                                     );
                                 if (CheckForPeakhood(
                                     Module.AllModules[modConfig.HeadIndex],
@@ -1290,19 +1287,8 @@ namespace ApsCalcUI
                                 {
                                     peakSet.Add((gpCount, rgCount, neighborSet)); // Store neighbors for setting bounds in later search passes
                                 }
-
-                                if (gpCount == gpRightBound)
-                                {
-                                    break;
-                                }
-                            }
-
-                            if (rgCount == globalMaxRGCount)
-                            {
-                                break;
                             }
                         }
-
                         // Local search to find peak centers
 
                     }

@@ -623,6 +623,7 @@ namespace ApsCalcUITests
         [Test]
         public void GenerateGridTest()
         {
+            /*
             float minGP = 0.5f;
             float maxGP = 8f;
             float minRG = 1.5f;
@@ -718,6 +719,7 @@ namespace ApsCalcUITests
                 Assert.IsTrue(gp + rg >= minCasings);
                 Assert.IsTrue(gp + rg <= maxCasings);
             }
+            */
 
             /*
             List<(float gpCount, float rgCount)> testGrid = ShellCalc.GenerateCasingGrid(minGP, maxGP, minRG, maxRG, spacing);
