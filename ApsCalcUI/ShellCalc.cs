@@ -3,13 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Linq;
 using System.IO;
-using System.Timers;
-using System.Diagnostics;
-using System.Reflection.Metadata.Ecma335;
-using System.DirectoryServices;
 using System.Runtime.Intrinsics.X86;
-using Microsoft.VisualBasic.Logging;
-using System.DirectoryServices.ActiveDirectory;
 
 namespace ApsCalcUI
 {
@@ -745,103 +739,118 @@ namespace ApsCalcUI
 
         static float ClampTo(float value, float min, float max)
         {
-            return MathF.Max(MathF.Min(value, max), min);
-        }
-
-        /// <summary>
-        /// Helper function for generating clipped 2D grid of possible casing combinations
-        /// Finds lowest valid X value for current Y
-        /// </summary>
-        /// <param name="rg">Current railgun casing count</param>
-        /// <param name="minGP">Min GP casing count</param>
-        /// <param name="minRG">Min RG casing count</param>
-        /// <param name="minCasings">Min total casings</param>
-        /// <param name="maxCasings">Max total casings</param>
-        /// <returns>Min GP casing count for current row</returns>
-        static float CalculateGPLeftBound(float rg, float minGP, float minRG, float minCasings, float maxCasings)
-        {
-            float gpLeft;
-            if (minRG == 0f)
+            if (min > max)
             {
-                gpLeft = minGP;
-            }
-            else if (rg <= minRG)
-            {
-                gpLeft = minGP * (1f - rg / minRG); // inner diagonal between (minGP, 0) and (0, minRG)
+                throw new ArgumentException("Min must be <= max", nameof(min));
             }
             else
             {
-                gpLeft = 0f; // RG axis between (0, minRG) and (0, maxRG)
+                return MathF.Max(MathF.Min(value, max), min);
             }
-            // gpLeft = ClampTo(gpLeft, minCasings - rg, maxCasings - rg);
-            return gpLeft;
         }
 
         /// <summary>
         /// Helper function for generating clipped 2D grid of possible casing combinations
-        /// Finds highest valid X value for current Y
         /// </summary>
         /// <param name="rg">Current railgun casing count</param>
-        /// <param name="maxGP">Max GP casing count</param>
-        /// <param name="maxRG">Max RG casing count</param>
-        /// <param name="minCasings">Min total casings</param>
-        /// <param name="maxCasings">Max total casings</param>
-        /// <returns>Max GP casing count for current row</returns>
-        static float CalculateGPRightBound(float rg, float maxGP, float maxRG, float minCasings, float maxCasings)
-        {
-            float gpRight = maxRG == 0 ?
-                maxGP // graph is 1D on GP axis
-                : maxGP * (1f - rg / maxRG); // outer diagonal
-            // gpRight = ClampTo(gpRight, minCasings - rg, maxCasings - rg);
-            return gpRight;
-        }
-
-        /// <summary>
-        /// Helper function for generating clipped 2D grid of possible casing combinations
-        /// Finds lowest valid Y value for current X
-        /// </summary>
-        /// <param name="gp">Current GP casing count</param>
-        /// <param name="minRG">Min RG casing count</param>
-        /// <param name="minGP">Min GP casing count</param>
-        /// <param name="minCasings">Min total casings</param>
-        /// <param name="maxCasings">Max total casings</param>
         /// <returns>Min RG casing count for current column</returns>
-        static float CalculateRGLowerBound(float gp, float minRG, float minGP, float minCasings, float maxCasings)
+        static float CalculateGPLeftBound(
+            float rg,
+            float drawPerRGCasing,
+            float recoilPerGPCasing,
+            float minTotalRecoilFromCasings,
+            float minCasingCountForLength,
+            float maxGP,
+            float spacing)
         {
-            float rgLower;
-            if (minGP == 0f)
+            if (maxGP == 0)
             {
-                rgLower = minRG;
-            }
-            else if (gp <= minGP)
-            {
-                rgLower = minRG * (1f - gp / minGP); // inner diagonal
+                return 0;
             }
             else
             {
-                rgLower = 0f; // GP axis between (minGP, 0) and (maxGP, 0)
+                float minGPForRecoil = (minTotalRecoilFromCasings - rg * drawPerRGCasing) / recoilPerGPCasing;
+                float minGPForLength = minCasingCountForLength - rg;
+                return (int)MathF.Ceiling(MathF.Min(maxGP, MathF.Max(minGPForRecoil, minGPForLength)) / spacing) * spacing;
             }
-            // rgLower = ClampTo(rgLower, minCasings - gp, maxCasings - gp);
-            return rgLower;
         }
 
         /// <summary>
         /// Helper function for generating clipped 2D grid of possible casing combinations
-        /// Finds highest valid Y value for current X
         /// </summary>
-        /// <param name="gp">Current GP casing count</param>
-        /// <param name="maxRG">Max RG casing count</param>
-        /// <param name="maxGP">Max GP casing count</param>
-        /// <param name="minCasings">Min total casings</param>
-        /// <param name="maxCasings">Max total casings</param>
-        /// <returns>Max RG casing count for current column</returns>
-        static float CalculateRGUpperBound(float gp, float maxRG, float maxGP, float minCasings, float maxCasings)
+        /// <param name="rg">Current railgun casing count</param>
+        /// <returns>Max GP casing count for current row</returns>
+        static float CalculateGPRightBound(
+            float rg,
+            float feltRecoilPerRGCasing,
+            float recoilPerGPCasing,
+            float maxFeltRecoil,
+            float maxCasingCountForLength,
+            float maxGP,
+            float spacing)
         {
-            float rgUpper = maxGP == 0f ?
-                maxRG // chart is 1D on RG axis
-                : maxGP * (1f - gp / maxGP); // outer diagonal
-            // rgUpper = ClampTo(rgUpper, minCasings - gp, maxCasings - gp);
-            return rgUpper;
+            if (maxGP == 0)
+            {
+                return 0;
+            }
+            else
+            {
+                float maxGPForRecoil = (maxFeltRecoil - rg * feltRecoilPerRGCasing) / recoilPerGPCasing;
+                float maxGPForLength = maxCasingCountForLength - rg;
+                return (int)MathF.Floor(MathF.Min(maxGP, MathF.Min(maxGPForRecoil, maxGPForLength)) / spacing) * spacing;
+            }
+        }
+        
+        /// <summary>
+        /// Helper function for generating clipped 2D grid of possible casing combinations
+        /// </summary>
+        /// <param name="gp">Current gunpowder casing count</param>
+        /// <returns>Min RG casing count for current column</returns>
+        static float CalculateRGLowerBound(
+            float gp,
+            float drawPerRGCasing,
+            float recoilPerGPCasing,
+            float minTotalRecoilFromCasings,
+            float minCasingCountForLength,
+            float maxRG,
+            float spacing)
+        {
+            if (maxRG == 0)
+            {
+                return 0;
+            }
+            else
+            {
+                float minRGForRecoil = (minTotalRecoilFromCasings - gp * recoilPerGPCasing) / drawPerRGCasing;
+                float minRGForLength = minCasingCountForLength - gp;
+                return (int)MathF.Ceiling(MathF.Min(maxRG, MathF.Max(minRGForRecoil, minRGForLength)) / spacing) * spacing;
+            }
+        }
+
+        /// <summary>
+        /// Helper function for generating clipped 2D grid of possible casing combinations
+        /// </summary>
+        /// <param name="gp">Current railgun casing count</param>
+        /// <returns>Max RG casing count for current column</returns>
+        static float CalculateRGUpperBound(
+            float gp,
+            float feltRecoilPerRGCasing,
+            float recoilPerGPCasing,
+            float maxFeltRecoil,
+            float maxCasingCountForLength,
+            float maxRG,
+            float spacing)
+        {
+            if (maxRG == 0)
+            {
+                return 0;
+            }
+            else
+            {
+                float maxRGForRecoil = (maxFeltRecoil - gp * recoilPerGPCasing) / feltRecoilPerRGCasing;
+                float maxRGForLength = maxCasingCountForLength - gp;
+                return (int)MathF.Floor(MathF.Min(maxRG, MathF.Min(maxRGForRecoil, maxRGForLength)) / spacing) * spacing;
+            }
         }
 
         /// <summary>
@@ -849,58 +858,55 @@ namespace ApsCalcUI
         /// </summary>
         /// <param name="gp">Current GP casing count (x)</param>
         /// <param name="rg">Current RG casing count (y)</param>
-        /// <param name="minGP">Min GP casing count if 0 RG</param>
-        /// <param name="maxGP">Max GP casing count</param>
-        /// <param name="minRG">Min RG casing count if 0 GP</param>
-        /// <param name="maxRG">Max RG casing count</param>
-        /// <param name="minCasings">Min total casings</param>
-        /// <param name="maxCasings">Max total casings</param>
-        /// <param name="spacing">Max interval between points</param>
+        /// <param name="spacing">Interval between points</param>
         /// <returns>HashSet of up to eight valid neighbors</returns>
         public static HashSet<(float gp, float rg)> GenerateNeighbors(
             float gp, 
             float rg, 
-            float minGP, 
-            float maxGP, 
-            float minRG, 
-            float maxRG, 
-            float minCasings, 
-            float maxCasings, 
+            float maxGP,
+            float maxRG,
+            float minTotalRecoil,
+            float maxFeltRecoil,
+            float recoilPerGPCasing,
+            float drawPerRGCasing,
+            float feltRecoilPerRGCasing,
+            float minCasingsForLength, 
+            float maxCasingsForLength,
             float spacing)
         {
             HashSet<(float gp, float rg)> neighborSet = [];
+            int centerGPIncrementCount = (int)MathF.Round(gp / spacing);
+            int centerRGIncrementCount = (int)MathF.Round(rg / spacing);
             // same row, left and right
-            float leftGP = MathF.Max(ClampTo(gp - spacing, minCasings - rg, maxCasings - rg),
-                CalculateGPLeftBound(rg, minGP, minRG, minCasings, maxCasings));
-            float rightGP = MathF.Min(ClampTo(gp + spacing, minCasings - rg, maxCasings - rg),
-                CalculateGPRightBound(rg, maxGP, maxRG, minCasings, maxCasings));
+            float centerGPLeftBound = CalculateGPLeftBound(rg, drawPerRGCasing, recoilPerGPCasing, minTotalRecoil, minCasingsForLength, maxGP, spacing);
+            float centerGPRightBound = CalculateGPRightBound(rg, feltRecoilPerRGCasing, recoilPerGPCasing, maxFeltRecoil, maxCasingsForLength, maxGP, spacing);
+            float centerLeftGPRaw = (centerGPIncrementCount - 1) * spacing;
+            float centerRightGPRaw = (centerGPIncrementCount + 1) * spacing;
+            float centerLeftGP = ClampTo(centerLeftGPRaw, centerGPLeftBound, centerGPRightBound);
+            float centerRightGP = ClampTo(centerRightGPRaw, centerGPLeftBound, centerGPRightBound);
             // same column, up and down
-            float bottomRG = MathF.Max(ClampTo(rg - spacing, minCasings - gp, maxCasings - gp),
-                CalculateRGLowerBound(gp, minRG, minGP, minCasings, maxCasings));
-            float topRG = MathF.Min(ClampTo(rg + spacing, minCasings - gp, maxCasings - gp),
-                CalculateRGUpperBound(gp, maxRG, maxGP, minCasings, maxCasings));
+            float centerRGLowerBound = CalculateRGLowerBound(gp, drawPerRGCasing, recoilPerGPCasing, minTotalRecoil, minCasingsForLength, maxRG, spacing);
+            float centerRGUpperBound = CalculateRGUpperBound(gp, feltRecoilPerRGCasing, recoilPerGPCasing, maxFeltRecoil, maxCasingsForLength, maxRG, spacing);
+            float lowerRG = ClampTo((centerRGIncrementCount - 1) * spacing, centerRGLowerBound, centerRGUpperBound);
+            float upperRG = ClampTo((centerRGIncrementCount + 1) * spacing, centerRGLowerBound, centerRGUpperBound);
             // corners
-            float topLeftRG = MathF.Min(maxRG, rg + spacing);
-            float topLeftGP = MathF.Max(ClampTo(gp - spacing, minCasings - topLeftRG, maxCasings - topLeftRG),
-                CalculateGPLeftBound(topLeftRG, minGP, minRG, minCasings, maxCasings));
-            float bottomRightRG = MathF.Max(minRG, rg - spacing);
-            float bottomRightGP = MathF.Min(ClampTo(gp + spacing, minCasings - bottomRightRG, maxCasings - bottomRightRG),
-                CalculateGPRightBound(bottomRightRG, maxGP, maxRG, minCasings, maxCasings));
-            float topRightGP = MathF.Min(maxGP, gp + spacing);
-            float topRightRG = MathF.Min(ClampTo(rg + spacing, minCasings - topRightGP, maxCasings - topRightGP),
-                CalculateRGUpperBound(topRightGP, maxRG, maxGP, minCasings, maxCasings));
-            float bottomLeftGP = MathF.Max(minGP, gp - spacing);
-            float bottomLeftRG = MathF.Max(ClampTo(rg - spacing, minCasings - bottomLeftGP, maxCasings - bottomLeftGP),
-                CalculateRGLowerBound(bottomLeftGP, minRG, minGP, minCasings, maxCasings));
+            float topGPLeftBound = CalculateGPLeftBound(upperRG, drawPerRGCasing, recoilPerGPCasing, minTotalRecoil, minCasingsForLength, maxGP, spacing);
+            float topGPRightBound = CalculateGPRightBound(upperRG, feltRecoilPerRGCasing, recoilPerGPCasing, maxFeltRecoil, maxCasingsForLength, maxGP, spacing);
+            float topLeftGP = ClampTo(centerLeftGPRaw, topGPLeftBound, topGPRightBound);
+            float topRightGP = ClampTo(centerRightGPRaw, topGPLeftBound, topGPRightBound);
+            float bottomGPLeftBound = CalculateGPLeftBound(lowerRG, drawPerRGCasing, recoilPerGPCasing, minTotalRecoil, minCasingsForLength, maxGP, spacing);
+            float bottomGPRightBound = CalculateGPRightBound(lowerRG, feltRecoilPerRGCasing, recoilPerGPCasing, maxFeltRecoil, maxCasingsForLength, maxGP, spacing);
+            float bottomLeftGP = ClampTo(centerLeftGPRaw, bottomGPLeftBound, bottomGPRightBound);
+            float bottomRightGP = ClampTo(centerRightGPRaw, bottomGPLeftBound, bottomGPRightBound);
 
-            neighborSet.Add((leftGP, rg));
-            neighborSet.Add((rightGP, rg));
-            neighborSet.Add((gp, bottomRG));
-            neighborSet.Add((gp, topRG));
-            neighborSet.Add((topLeftGP, topLeftRG));
-            neighborSet.Add((bottomRightGP, bottomRightRG));
-            neighborSet.Add((topRightGP, topRightRG));
-            neighborSet.Add((bottomLeftGP, bottomLeftRG));
+            neighborSet.Add((centerLeftGP, rg));
+            neighborSet.Add((centerRightGP, rg));
+            neighborSet.Add((gp, lowerRG));
+            neighborSet.Add((gp, upperRG));
+            neighborSet.Add((topLeftGP, upperRG));
+            neighborSet.Add((bottomRightGP, lowerRG));
+            neighborSet.Add((topRightGP, upperRG));
+            neighborSet.Add((bottomLeftGP, lowerRG));
 
             return neighborSet;
         }
@@ -1225,6 +1231,9 @@ namespace ApsCalcUI
 
                     float maxRGCasingDraw = maxRecoil / shellUnderTesting.RGCasingFeltRecoilMultiplier;
                     float maxRGCountForRecoil = maxRGCasingDraw / drawPerCasing;
+                    float feltRecoilPerCasing = shellUnderTesting.DrawPerProjectileModule
+                        * shellUnderTesting.RGCasingDrawMultiplier
+                        * shellUnderTesting.RGCasingFeltRecoilMultiplier;
                     float globalMaxRGCount = MathF.Min(maxRGCountForRecoil, MaxRGInput);
 
                     foreach (LoaderBracket bracket in bracketsToTest)
@@ -1236,33 +1245,42 @@ namespace ApsCalcUI
                         float gridSize = 1f;
                         HashSet<(float gp, float rg, HashSet<(float gp, float rg)>)> peakSet = [];
                         HashSet<(float gpCount, float rgCount)> neighborSet = [];
-                        for (float rgCount = 0; rgCount <= globalMaxRGCount; rgCount += MathF.Min(gridSize, globalMaxRGCount - rgCount))
+
+                        int maxRGIncrementCount = (int)MathF.Floor(globalMaxRGCount / gridSize);
+                        for (int rgIncrementCount = 0; rgIncrementCount <= maxRGIncrementCount; rgIncrementCount++)
                         {
+                            float rgCount = gridSize * rgIncrementCount;
                             float gpLeftBound = CalculateGPLeftBound(
                                 rgCount,
-                                minGPForVelocityAndRange,
-                                minRGForVelocityAndRange,
+                                drawPerCasing,
+                                shellUnderTesting.GPRecoilPerCasing,
+                                minRecoilForVelocityAndRange,
                                 minCasingCountForBracket,
-                                maxCasingCountForBracket);
+                                MaxGP,
+                                gridSize);
+                            ClampTo(gpLeftBound, minCasingCountForBracket, maxCasingCountForBracket);
                             float gpRightBound = CalculateGPRightBound(
                                 rgCount,
-                                globalMaxGPCount,
-                                globalMaxRGCount,
-                                minCasingCountForBracket,
-                                maxCasingCountForBracket);
+                                feltRecoilPerCasing,
+                                shellUnderTesting.GPRecoilPerCasing,
+                                maxRecoil,
+                                maxCasingCountForBracket,
+                                MaxGP,
+                                gridSize
+                                );
+                            ClampTo(gpRightBound, minCasingCountForBracket, maxCasingCountForBracket);
 
-                            for (float gpCount = gpLeftBound; gpCount <= gpRightBound; gpCount += MathF.Min(gridSize, gpRightBound - gpCount))
+                            int minGPIncrementCount = (int)MathF.Ceiling(gpLeftBound /  gridSize);
+                            int maxGPIncrementCount = (int)MathF.Floor(gpRightBound / gridSize);
+                            for (int gpIncrementCount = minGPIncrementCount; gpIncrementCount <= maxGPIncrementCount; gpIncrementCount++)
                             {
+                                float gpCount = gridSize * gpIncrementCount;
                                 neighborSet = GenerateNeighbors(
                                     gpCount,
                                     rgCount,
-                                    minGPForVelocityAndRange,
-                                    globalMaxGPCount,
-                                    minRGForVelocityAndRange,
-                                    globalMaxRGCount,
-                                    minCasingCountForBracket,
-                                    maxCasingCountForBracket,
-                                    gridSize);
+                                    MaxGP,
+
+                                    );
                                 if (CheckForPeakhood(
                                     Module.AllModules[modConfig.HeadIndex],
                                     modConfig.VariableModCounts,

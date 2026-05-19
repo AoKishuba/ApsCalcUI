@@ -18,24 +18,19 @@ namespace ApsCalcUI
 
 
         /// <summary>
-        /// Calculates AC of each layer, taking into account structural bonuses
+        /// Calculates AC of each layer, taking into account structural bonus
         /// </summary>
         public void CalculateLayerAC()
         {
             // Add structural bonus, if applicable
             for (int layerIndex = 0; layerIndex < LayerList.Count - 1; layerIndex++)
             {
-                if (LayerList[layerIndex + 1].GivesACBonus)
-                {
-                    LayerList[layerIndex].AC = LayerList[layerIndex].RawAC + LayerList[layerIndex + 1].ACBonus;
-                }
-                else
-                {
-                    LayerList[layerIndex].AC = LayerList[layerIndex].RawAC;
-                }
+                Layer currentLayer = LayerList[layerIndex];
+                Layer nextLayer = LayerList[layerIndex + 1];
+                currentLayer.AC = nextLayer.GivesACBonus ? currentLayer.RawAC + nextLayer.ACBonus : currentLayer.RawAC;
 
                 // Update max useful AC
-                MaxAC = Math.Max(MaxAC, LayerList[layerIndex].AC);
+                MaxAC = Math.Max(MaxAC, currentLayer.AC);
             }
 
             // Last layer is left at default
@@ -44,7 +39,7 @@ namespace ApsCalcUI
 
 
         /// <summary>
-        /// Retrieves KD required to pen armor at given AP
+        /// Calculates KD required to pen armor at given AP
         /// </summary>
         /// <param name="ap">AP of incoming shell</param>
         /// <param name="impactAngle">Impact angle of incoming shell from perpendicular, in °</param>

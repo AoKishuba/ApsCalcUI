@@ -205,12 +205,11 @@ namespace ApsCalcUI
                 BodyLength += MathF.Min(Gauge, BaseModule.MaxLength);
             }
 
-            int modIndex = 0;
-            foreach (float modCount in BodyModuleCounts)
+            for (int modIndex = 0; modIndex < BodyModuleCounts.Length; modIndex++)
             {
-                float ModuleLength = MathF.Min(Gauge, Module.AllModules[modIndex].MaxLength);
-                BodyLength += ModuleLength * modCount;
-                modIndex++;
+                float modCount = BodyModuleCounts[modIndex];
+                float modLength = MathF.Min(Gauge, Module.AllModules[modIndex].MaxLength);
+                BodyLength += modCount * modLength;
             }
 
             CasingLength = (GPCasingCount + RGCasingCount) * Gauge;
@@ -241,12 +240,11 @@ namespace ApsCalcUI
             }
 
             // Add body module weighted modifiers
-            int modIndex = 0;
-            foreach (float modCount in BodyModuleCounts)
+            for (int modIndex = 0; modIndex < BodyModuleCounts.Length; modIndex++)
             {
+                float modCount = BodyModuleCounts[modIndex];
                 float modLength = MathF.Min(Gauge, Module.AllModules[modIndex].MaxLength);
                 weightedVelocityMod += modLength * Module.AllModules[modIndex].VelocityMod * modCount;
-                modIndex++;
             }
 
             if (LengthDifferential > 0f) // Add 'ghost' module for penalizing short shells; has no effect if body length >= 2 * gauge
@@ -278,6 +276,7 @@ namespace ApsCalcUI
         }
 
 
+
         /// <summary>
         /// Calculates kinetic damage modifier
         /// </summary>
@@ -290,12 +289,11 @@ namespace ApsCalcUI
                 weightedKineticDamageMod += BaseModule.KineticDamageMod * MathF.Min(Gauge, BaseModule.MaxLength);
             }
 
-            int modIndex = 0;
-            foreach (float modCount in BodyModuleCounts)
+            for (int modIndex = 0; modIndex < BodyModuleCounts.Length; modIndex++)
             {
+                float modCount = BodyModuleCounts[modIndex];
                 float modLength = MathF.Min(Gauge, Module.AllModules[modIndex].MaxLength);
                 weightedKineticDamageMod += modLength * Module.AllModules[modIndex].KineticDamageMod * modCount;
-                modIndex++;
             }
 
             if (LengthDifferential > 0f) // Add 'ghost' module for penalizing short shells; has no effect if body length >= 2 * gauge
@@ -326,12 +324,11 @@ namespace ApsCalcUI
                 weightedArmorPierceMod += BaseModule.ArmorPierceMod * MathF.Min(Gauge, BaseModule.MaxLength);
             }
 
-            int modIndex = 0;
-            foreach (float modCount in BodyModuleCounts)
+            for (int modIndex = 0; modIndex < BodyModuleCounts.Length; modIndex++)
             {
+                float modCount = BodyModuleCounts[modIndex];
                 float modLength = MathF.Min(Gauge, Module.AllModules[modIndex].MaxLength);
                 weightedArmorPierceMod += modLength * Module.AllModules[modIndex].ArmorPierceMod * modCount;
-                modIndex++;
             }
 
             if (LengthDifferential > 0f) // Add 'ghost' module for penalizing short shells; has no effect if body length >= 2 * gauge
@@ -356,15 +353,15 @@ namespace ApsCalcUI
                 OverallChemModifier = MathF.Min(OverallChemModifier, BaseModule.ChemMod);
             }
 
-
-            int modIndex = 0;
-            foreach (float modCount in BodyModuleCounts)
+            for (int modIndex = 0; modIndex < BodyModuleCounts.Length; modIndex++)
             {
+                float modCount = BodyModuleCounts[modIndex];
                 if (modCount > 0)
                 {
-                    OverallChemModifier = MathF.Min(OverallChemModifier, Module.AllModules[modIndex].ChemMod);
+                    {
+                        OverallChemModifier = MathF.Min(OverallChemModifier, Module.AllModules[modIndex].ChemMod);
+                    }
                 }
-                modIndex++;
             }
 
             if (HeadModule == Module.Disruptor) // Disruptor 50% penalty stacks
@@ -391,12 +388,11 @@ namespace ApsCalcUI
             }
 
             // Add body module weighted modifiers
-            int modIndex = 0;
-            foreach (float modCount in BodyModuleCounts)
+            for (int modIndex = 0; modIndex < BodyModuleCounts.Length; modIndex++)
             {
+                float modCount = BodyModuleCounts[modIndex];
                 float modLength = MathF.Min(Gauge, Module.AllModules[modIndex].MaxLength);
                 weightedInaccuracyMod += modLength * Module.AllModules[modIndex].InaccuracyMod * modCount;
-                modIndex++;
             }
 
             if (LengthDifferential > 0f) // Add 'ghost' module for penalizing short shells; has no effect if body length >= 2 * gauge
@@ -532,20 +528,7 @@ namespace ApsCalcUI
         {
             CalculateRecoil();
             // Calculate effective time
-            float gravityCompensatorCount = 0;
-            int modIndex = 0;
-            foreach (float modCount in BodyModuleCounts)
-            {
-                if (Module.AllModules[modIndex] == Module.GravCompensator)
-                {
-                    gravityCompensatorCount = BodyModuleCounts[modIndex];
-                    break;
-                }
-                else
-                {
-                    modIndex++;
-                }
-            }
+            float gravityCompensatorCount = BodyModuleCounts[Module.GravCompensatorIndex];
             float effectiveTime = 10f * OverallVelocityModifier * (ProjectileLength / 1000f) * (1f + gravityCompensatorCount);
 
             // Determine whether range or velocity is limiting factor
@@ -673,20 +656,7 @@ namespace ApsCalcUI
         /// </summary>
         public void CalculateEffectiveRange()
         {
-            float gravityCompensatorCount = 0;
-            int modIndex = 0;
-            foreach (float modCount in BodyModuleCounts)
-            {
-                if (Module.AllModules[modIndex] == Module.GravCompensator)
-                {
-                    gravityCompensatorCount = BodyModuleCounts[modIndex];
-                    break;
-                }
-                else
-                {
-                    modIndex++;
-                }
-            }
+            float gravityCompensatorCount = BodyModuleCounts[Module.GravCompensatorIndex];
             float effectiveTime = 10f * OverallVelocityModifier * (ProjectileLength / 1000f) * (1f + gravityCompensatorCount);
             EffectiveRange = Velocity * effectiveTime;
         }
@@ -699,46 +669,17 @@ namespace ApsCalcUI
         /// <param name="fragAngleMultiplier">(2 + sqrt(angle °)) / 16</param>
         public void CalculateDamageByType(DamageType dt, float fragAngleMultiplier)
         {
-            if (dt == DamageType.Kinetic)
+            switch (dt)
             {
-                CalculateKineticDamage();
-                CalculateAP();
-            }
-            else if (dt == DamageType.EMP)
-            {
-                CalculateEmpDamage();
-            }
-            else if (dt == DamageType.MD)
-            {
-                CalculateFlakDamage();
-            }
-            else if (dt == DamageType.Frag)
-            {
-                CalculateFragDamage(fragAngleMultiplier);
-            }
-            else if (dt == DamageType.HE)
-            {
-                CalculateHEDamage();
-            }
-            else if (dt == DamageType.HEAT)
-            {
-                CalculateHeatDamage();
-            }
-            else if (dt == DamageType.Incendiary)
-            {
-                CalculateIncendiaryDamage();
-            }
-            else if (dt == DamageType.Disruptor)
-            {
-                CalculateShieldReduction();
-            }
-            else if (dt == DamageType.Smoke)
-            {
-                CalculateSmokeStrength();
-            }
-            else if (dt == DamageType.Incendiary)
-            {
-                CalculateIncendiaryDamage();
+                case DamageType.Kinetic: CalculateKineticDamage(); CalculateAP(); break;
+                case DamageType.EMP: CalculateEmpDamage(); break;
+                case DamageType.MD: CalculateMDDamage(); break;
+                case DamageType.Frag: CalculateFragDamage(fragAngleMultiplier); break;
+                case DamageType.HE: CalculateHEDamage(); break;
+                case DamageType.HEAT: CalculateHeatDamage(); break;
+                case DamageType.Incendiary: CalculateIncendiaryDamage(); break;
+                case DamageType.Disruptor: CalculateShieldReduction(); break;
+                case DamageType.Smoke: CalculateSmokeStrength(); break;
             }
         }
 
@@ -786,18 +727,7 @@ namespace ApsCalcUI
         /// </summary>
         void CalculateEmpDamage()
         {
-            // Get index of EMP body
-            int empIndex = int.MaxValue;
-            for (int i = 0; i < Module.AllModules.Length; i++)
-            {
-                if (Module.AllModules[i] == Module.EmpBody)
-                {
-                    empIndex = i;
-                    break;
-                }
-            }
-
-            float empBodies = BodyModuleCounts[empIndex];
+            float empBodies = BodyModuleCounts[Module.EmpBodyIndex];
 
             if (HeadModule == Module.EmpHead || HeadModule == Module.EmpBody || HeadModule == Module.Disruptor)
             {
@@ -807,28 +737,17 @@ namespace ApsCalcUI
         }
 
         /// <summary>
-        /// Calculates Flak damage
+        /// Calculates anti-munition "munition defense" damage
         /// </summary>
-        void CalculateFlakDamage()
+        void CalculateMDDamage()
         {
-            // Get index of Flak body
-            int flakIndex = int.MaxValue;
-            for (int i = 0; i < Module.AllModules.Length; i++)
-            {
-                if (Module.AllModules[i] == Module.MDBody)
-                {
-                    flakIndex = i;
-                    break;
-                }
-            }
-
-            float flaKBodies = BodyModuleCounts[flakIndex];
+            float mdBodies = BodyModuleCounts[Module.MDBodyIndex];
 
             if (HeadModule == Module.MDHead || HeadModule == Module.MDBody)
             {
-                flaKBodies++;
+                mdBodies++;
             }
-            DamageDict[DamageType.MD] = 3000f * MathF.Pow(GaugeMultiplier * flaKBodies / 31.25f * ApsModifier * OverallChemModifier, 0.9f);
+            DamageDict[DamageType.MD] = 3000f * MathF.Pow(GaugeMultiplier * mdBodies / 31.25f * ApsModifier * OverallChemModifier, 0.9f);
             MDExplosionRadius = MathF.Pow(DamageDict[DamageType.MD], 0.3f) * 3f;
             /* 
              * Multiply by volume to approximate applied damage; divide by 1000 to make result more manageable
@@ -843,18 +762,7 @@ namespace ApsCalcUI
         /// <param name="fragAngleMultiplier">(2 + sqrt(cone angle °)) / 16</param>
         void CalculateFragDamage(float fragAngleMultiplier)
         {
-            // Get index of frag body
-            int fragIndex = int.MaxValue;
-            for (int i = 0; i < Module.AllModules.Length; i++)
-            {
-                if (Module.AllModules[i] == Module.FragBody)
-                {
-                    fragIndex = i;
-                    break;
-                }
-            }
-
-            float fragBodies = BodyModuleCounts[fragIndex];
+            float fragBodies = BodyModuleCounts[Module.FragBodyIndex];
 
             if (HeadModule == Module.FragHead || HeadModule == Module.FragBody)
             {
@@ -872,18 +780,7 @@ namespace ApsCalcUI
         /// </summary>
         void CalculateHEDamage()
         {
-            // Get index of HE body
-            int heIndex = int.MaxValue;
-            for (int i = 0; i < Module.AllModules.Length; i++)
-            {
-                if (Module.AllModules[i] == Module.HEBody)
-                {
-                    heIndex = i;
-                    break;
-                }
-            }
-
-            float heBodies = BodyModuleCounts[heIndex];
+            float heBodies = BodyModuleCounts[Module.HEBodyIndex];
 
             if (HeadModule == Module.ShapedChargeHead)
             {
@@ -908,18 +805,7 @@ namespace ApsCalcUI
         {
             if (HeadModule == Module.ShapedChargeHead)
             {
-                // Get index of HE body
-                int heIndex = int.MaxValue;
-                for (int i = 0; i < Module.AllModules.Length; i++)
-                {
-                    if (Module.AllModules[i] == Module.HEBody)
-                    {
-                        heIndex = i;
-                        break;
-                    }
-                }
-
-                float heBodies = BodyModuleCounts[heIndex];
+                float heBodies = BodyModuleCounts[Module.HEBodyIndex];
                 // Calculate HE damage assuming special factor of 1 for HE bodies
                 // Special heads count as HE body with special factor of 0.8, leaving 0.2 body equivalents for actual HE damage
                 RawHE = 3000f * MathF.Pow(GaugeMultiplier * 0.2f * 120f * ApsModifier / 3000f * OverallChemModifier, 0.9f);
@@ -951,17 +837,7 @@ namespace ApsCalcUI
             float intensityFactor = 0;
             float oxidizerFactor = 0;
             // Get index of incendiary body
-            int incendiaryIndex = int.MaxValue;
-            for (int i = 0; i < Module.AllModules.Length; i++)
-            {
-                if (Module.AllModules[i] == Module.IncendiaryBody)
-                {
-                    incendiaryIndex = i;
-                    break;
-                }
-            }
-
-            float incendiaryBodies = BodyModuleCounts[incendiaryIndex];
+            float incendiaryBodies = BodyModuleCounts[Module.IncendiaryBodyIndex];
 
             if (HeadModule == Module.IncendiaryHead || HeadModule == Module.IncendiaryBody)
             {
@@ -998,17 +874,7 @@ namespace ApsCalcUI
         {
             if (Gauge >= 200)
             {
-                // Get index of smoke body
-                int smokeIndex = int.MaxValue;
-                for (int i = 0; i < Module.AllModules.Length; i++)
-                {
-                    if (Module.AllModules[i] == Module.SmokeBody)
-                    {
-                        smokeIndex = i;
-                        break;
-                    }
-                }
-                float smokeBodies = BodyModuleCounts[smokeIndex];
+                float smokeBodies = BodyModuleCounts[Module.SmokeBodyIndex];
 
                 // Smoke is not affected by chem multiplier
                 DamageDict[DamageType.Smoke] = GaugeMultiplier * smokeBodies * 1000;
@@ -1047,41 +913,17 @@ namespace ApsCalcUI
             if (RawKD >= targetScheme.GetRequiredKD(ArmorPierce, impactAngleFromPerpendicularDegrees, HeadModule == Module.SabotHead)
                 || (HeadModule == Module.HollowPoint && RawKD >= targetScheme.GetRequiredThump(ArmorPierce)))
             {
-                if (dt == DamageType.Kinetic)
+                switch (dt)
                 {
-                    CalculateKineticDps(targetAC);
-                }
-                else if (dt == DamageType.EMP)
-                {
-                    CalculateEmpDps();
-                }
-                else if (dt == DamageType.MD)
-                {
-                    CalculateFlakDps();
-                }
-                else if (dt == DamageType.Frag)
-                {
-                    CalculateFragDps();
-                }
-                else if (dt == DamageType.HE)
-                {
-                    CalculateHEDps();
-                }
-                else if (dt == DamageType.HEAT)
-                {
-                    CalculateHeatDps();
-                }
-                else if (dt == DamageType.Disruptor)
-                {
-                    CalculateShieldRps();
-                }
-                else if (dt == DamageType.Smoke)
-                {
-                    CalculateSmokeDPS();
-                }
-                else if (dt == DamageType.Incendiary)
-                {
-                    CalculateIncendiaryDPS();
+                    case DamageType.Kinetic: CalculateKineticDps(targetAC); break;
+                    case DamageType.EMP: CalculateEmpDps(); break;
+                    case DamageType.MD: CalculateMDDps(); break;
+                    case DamageType.Frag: CalculateFragDps(); break;
+                    case DamageType.HE: CalculateHEDps(); break;
+                    case DamageType.HEAT: CalculateHeatDps(); break;
+                    case DamageType.Incendiary: CalculateIncendiaryDps(); break;
+                    case DamageType.Disruptor: CalculateShieldRps(); break;
+                    case DamageType.Smoke: CalculateSmokeDps(); break;
                 }
             }
             else
@@ -1141,9 +983,9 @@ namespace ApsCalcUI
         }
 
         /// <summary>
-        /// Calculates Flak damage per second
+        /// Calculates anti-munition "munition defense" damage per second
         /// </summary>
-        void CalculateFlakDps()
+        void CalculateMDDps()
         {
             DpsDict[DamageType.MD] = DamageDict[DamageType.MD] / ClusterReloadTime * Uptime;
             DpsPerVolumeDict[DamageType.MD] = DpsDict[DamageType.MD] / VolumePerLoader;
@@ -1221,7 +1063,7 @@ namespace ApsCalcUI
         /// <summary>
         /// Calculates smoke strength per second
         /// </summary>
-        void CalculateSmokeDPS()
+        void CalculateSmokeDps()
         {
             DpsDict[DamageType.Smoke] = DamageDict[DamageType.Smoke] / ClusterReloadTime * Uptime;
             DpsPerVolumeDict[DamageType.Smoke] = DpsDict[DamageType.Smoke] / VolumePerLoader;
@@ -1231,7 +1073,7 @@ namespace ApsCalcUI
         /// <summary>
         /// Calculates incendiary damage per second
         /// </summary>
-        void CalculateIncendiaryDPS()
+        void CalculateIncendiaryDps()
         {
             DpsDict[DamageType.Incendiary] = DamageDict[DamageType.Incendiary] / ClusterReloadTime * Uptime;
             DpsPerVolumeDict[DamageType.Incendiary] = DpsDict[DamageType.Incendiary] / VolumePerLoader;
