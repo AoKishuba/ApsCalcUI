@@ -3,10 +3,17 @@ using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Linq;
 using System.IO;
-using System.Runtime.Intrinsics.X86;
 
 namespace ApsCalcUI
 {
+    public struct Neighborhood
+    {
+        public float centerGP;
+        public float centerRG;
+        public float bottomRG;
+        public float topRG;
+    }
+
     public struct ModuleConfig
     {
         public int HeadIndex;
@@ -1222,6 +1229,7 @@ namespace ApsCalcUI
                     float feltRecoilPerCasing = shellUnderTesting.DrawPerProjectileModule
                         * shellUnderTesting.RGCasingDrawMultiplier
                         * shellUnderTesting.RGCasingFeltRecoilMultiplier;
+                    float maxRGCasings = MathF.Min(MaxRGInput, maxFeltRecoil / feltRecoilPerCasing);
 
                     foreach (LoaderBracket bracket in bracketsToTest)
                     {
@@ -1232,65 +1240,92 @@ namespace ApsCalcUI
 
                         // Treat all possible combinations of GP and RG casings as 2D heatmap to be searched for peaks
                         float gridSize = 1f;
-                        HashSet<(float gp, float rg, HashSet<(float gp, float rg)>)> peakSet = [];
-                        HashSet<(float gpCount, float rgCount)> neighborSet = [];
+                        HashSet<Neighborhood> neighborhoodSet = [];
 
-                        int maxRGIncrementCount = (int)MathF.Floor(MathF.Min(MaxRGInput, maxCasingCountForBracket) / gridSize);
+                        int maxRGIncrementCount = (int)MathF.Floor(MathF.Min(maxRGCasings, maxCasingCountForBracket) / gridSize);
                         for (int rgIncrementCount = 0; rgIncrementCount <= maxRGIncrementCount; rgIncrementCount++)
                         {
                             float rgCount = gridSize * rgIncrementCount;
-                            float gpLeftBound = CalculateGPLeftBound(
-                                rgCount,
-                                drawPerCasing,
-                                shellUnderTesting.GPRecoilPerCasing,
-                                minCasingRecoil,
-                                minCasingCountForBracket,
-                                MaxGP,
-                                gridSize);
-                            ClampTo(gpLeftBound, minCasingCountForBracket, maxCasingCountForBracket);
-                            float gpRightBound = CalculateGPRightBound(
-                                rgCount,
-                                feltRecoilPerCasing,
-                                shellUnderTesting.GPRecoilPerCasing,
-                                maxFeltRecoil,
-                                maxCasingCountForBracket,
-                                MaxGP,
-                                gridSize
-                                );
-                            ClampTo(gpRightBound, minCasingCountForBracket, maxCasingCountForBracket);
 
-                            int minGPIncrementCount = (int)MathF.Ceiling(gpLeftBound /  gridSize);
-                            int maxGPIncrementCount = (int)MathF.Floor(MathF.Min(gpRightBound, MaxGP) / gridSize);
+                            float minGPForLength = minCasingCountForBracket -  rgCount;
+                            float minGPForRecoil = minCasingRecoil - rgCount * drawPerCasing;
+                            float maxGPForLength = maxCasingCountForBracket - rgCount;
+                            float maxGPForRecoil = maxFeltRecoil - rgCount * feltRecoilPerCasing;
+
+                            float minGP = MathF.Max(0, MathF.Max(minGPForLength, minGPForRecoil));
+                            float maxGP = MathF.Min(MaxGP, MathF.Min(maxGPForLength, maxGPForRecoil));
+                            int minGPIncrementCount = (int)MathF.Ceiling(minGP /  gridSize);
+                            int maxGPIncrementCount = (int)MathF.Floor(maxGP / gridSize);
                             for (int gpIncrementCount = minGPIncrementCount; gpIncrementCount <= maxGPIncrementCount; gpIncrementCount++)
                             {
+                                HashSet<(float gpCount, float rgCount)> neighborSet = [];
+                                // Generate up to four neighbors for each point
                                 float gpCount = gridSize * gpIncrementCount;
-                                neighborSet = GenerateNeighbors(
-                                    gpCount,
-                                    rgCount,
-                                    MaxGP,
-                                    MaxRGInput,
-                                    minCasingRecoil,
-                                    maxFeltRecoil,
-                                    shellUnderTesting.GPRecoilPerCasing,
-                                    drawPerCasing,
-                                    feltRecoilPerCasing,
-                                    minCasingCountForBracket,
-                                    maxCasingCountForBracket,
-                                    gridSize
-                                    );
-                                if (CheckForPeakhood(
-                                    Module.AllModules[modConfig.HeadIndex],
-                                    modConfig.VariableModCounts,
-                                    (gpCount, rgCount),
-                                    neighborSet,
-                                    bracket.IsBelt))
+
+                                // Same row, left and right
+                                float leftGP = Math.Max(gpIncrementCount - 1, minGPIncrementCount) * gridSize;
+                                float rightGP = Math.Min(gpIncrementCount + 1, maxGPIncrementCount) * gridSize;
+                                // Same column, up and down
+                                float bottomRG = Math.Max(rgIncrementCount - 1, 0) * gridSize;
+                                float topRG = Math.Min(rgIncrementCount + 1, maxRGIncrementCount) * gridSize;
+
+                                neighborSet.Add((gpCount, topRG));
+                                neighborSet.Add((gpCount, bottomRG));
+                                neighborSet.Add((leftGP, rgCount));
+                                neighborSet.Add((rightGP, rgCount));
+
+                                // Check for peakhood
+                                float centerScore = ShellTest2(shellUnderTesting.HeadModule, modConfig.VariableModCounts, gpCount, rgCount, bracket.IsBelt);
+                                bool centerIsPeak = true;
+                                foreach((float gp, float rg) in  neighborSet)
                                 {
-                                    peakSet.Add((gpCount, rgCount, neighborSet)); // Store neighbors for setting bounds in later search passes
+                                    float neighborScore = ShellTest2(shellUnderTesting.HeadModule, modConfig.VariableModCounts, gp, rg, bracket.IsBelt);
+                                    if (neighborScore > centerScore)
+                                    {
+                                        centerIsPeak = false;
+                                        break;
+                                    }
+                                }
+
+                                if (centerIsPeak)
+                                {
+                                    Neighborhood hood = new() { centerGP = gpCount, centerRG = rgCount, bottomRG = bottomRG, topRG = topRG };
+                                    neighborhoodSet.Add(hood);
                                 }
                             }
                         }
-                        // Local search to find peak centers
+                        // Fine search to find peak centers
+                        float topScore = 0;
+                        (float gp, float rg) topCasingCounts = (0f, 0f);
+                        float spacing = 0.01f;
+                        foreach (Neighborhood hood in neighborhoodSet)
+                        {
+                            int bottomRGIncrement = (int)Math.Ceiling(hood.bottomRG);
+                            int topRGIncrement = (int)Math.Floor(hood.topRG);
 
+                            for (int rgIncrement =  bottomRGIncrement; rgIncrement <= topRGIncrement; rgIncrement++)
+                            {
+                                float rgCount = spacing * rgIncrement;
+
+                                float minGPForLength = minCasingCountForBracket - rgCount;
+                                float minGPForRecoil = minCasingRecoil - rgCount * drawPerCasing;
+                                float maxGPForLength = maxCasingCountForBracket - rgCount;
+                                float maxGPForRecoil = maxFeltRecoil - rgCount * feltRecoilPerCasing;
+
+                                float minGP = MathF.Max(0, MathF.Max(minGPForLength, minGPForRecoil));
+                                float maxGP = MathF.Min(MaxGP, MathF.Min(maxGPForLength, maxGPForRecoil));
+                                int minGPIncrementCount = (int)MathF.Ceiling(minGP / spacing);
+                                int maxGPIncrementCount = (int)MathF.Floor(maxGP / spacing);
+
+                                for (int gpIncrement =  minGPIncrementCount; gpIncrement <= maxGPIncrementCount; gpIncrement++)
+                                {
+                                    float gpCount = spacing * gpIncrement;
+
+                                    float score = ShellTest2(shellUnderTesting.HeadModule, modConfig.VariableModCounts, gpCount, rgCount, bracket.IsBelt);
+                                    topCasingCounts = score > topScore ? topCasingCounts : (gpCount, rgCount);
+                                }
+                            }
+                        }
                     }
                 }
             }
