@@ -9,7 +9,7 @@ namespace ApsCalcUI
         public int BarrelCount;
         public int MinGauge;
         public int MaxGauge;
-        public List<int> HeadIndices;
+        public List<int> HeadIndexList;
         public Module BaseModule;
         public float[] FixedModulecounts;
         public float MinModulecount;

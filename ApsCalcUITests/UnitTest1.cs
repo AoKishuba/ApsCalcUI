@@ -5,6 +5,7 @@ using System.Linq;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Windows.Forms;
+using NUnit.Framework.Internal;
 
 namespace ApsCalcUITests
 {
@@ -100,8 +101,8 @@ namespace ApsCalcUITests
             testShell.CalculateCoolerVolumeAndCost();
             testShell.CalculateLoaderVolumeAndCost();
             testShell.CalculateVariableVolumesAndCosts(
-                testIntervalSeconds, 
-                storagePerVolume, 
+                testIntervalSeconds,
+                storagePerVolume,
                 storagePerCost);
             foreach (DamageType dt in dts)
             {
@@ -242,6 +243,95 @@ namespace ApsCalcUITests
         }
 
         [Test]
+        public void SchemePenetrationVelocityTest()
+        {
+            int barrelCount = 1;
+            float gauge = 490f;
+            float gaugeMultiplier = MathF.Pow(gauge / 500f, 1.8f);
+            bool isBelt = false;
+            Module headModule = Module.APHead;
+            Module baseModule = Module.BaseBleeder;
+            int clipsPerLoader = 2;
+            int inputsPerLoader = 1;
+            bool usesAmmoEjector = false;
+            float gpCasingCount = 1.5f;
+            float rgCasingCount = 0.5f;
+            float rateOfFireRpm = 100f;
+            bool gunUsesRecoilAbsorbers = true;
+            bool isDif = false;
+            float raildraw = 500f;
+
+            float impactAngle = 0f;
+            float nonSabotAngleMultiplier = MathF.Abs(MathF.Cos(impactAngle * MathF.PI / 180));
+            float sabotAngleMultiplier = MathF.Abs(MathF.Cos(impactAngle * MathF.PI / 240));
+            float[] testModuleCounts = new float[Module.GetBodyModuleCount()];
+            for (int i = 0; i < testModuleCounts.Length; i++)
+            {
+                testModuleCounts[i] = 1;
+            }
+
+            Shell testShell = new(
+                barrelCount,
+                gauge,
+                gaugeMultiplier,
+                isBelt,
+                headModule,
+                baseModule,
+                clipsPerLoader,
+                inputsPerLoader,
+                clipsPerLoader,
+                inputsPerLoader,
+                usesAmmoEjector,
+                gpCasingCount,
+                rgCasingCount,
+                rateOfFireRpm,
+                gunUsesRecoilAbsorbers,
+                isDif
+                )
+            {
+                RailDraw = raildraw,
+                NonSabotAngleMultiplier = nonSabotAngleMultiplier,
+                SabotAngleMultiplier = sabotAngleMultiplier
+            };
+            testModuleCounts.CopyTo(testShell.BodyModuleCounts, 0);
+            testShell.CalculateLengths();
+            testShell.CalculateVelocityModifier();
+            testShell.CalculateDamageModifierByType(DamageType.Kinetic);
+
+            Scheme testScheme = new();
+
+            testScheme.LayerList.Add(Layer.Air);
+            testScheme.CalculateLayerAC();
+            float minVelocityToPenAir = testScheme.CalculateMinVelocityToPenetrate(testShell, impactAngle);
+
+            testScheme.LayerList.Clear();
+            testScheme.LayerList.Add(Layer.MetalBeam);
+            testScheme.CalculateLayerAC();
+            float minVelocityToPenMetal = testScheme.CalculateMinVelocityToPenetrate(testShell, impactAngle);
+            float minRecoilToPenMetal = testShell.CalculateMinTotalRecoilForVelocity(minVelocityToPenMetal);
+            testShell.TotalRecoil = minRecoilToPenMetal;
+            testShell.CalculateDamageByType(DamageType.Kinetic, 0);
+            float apAtMetalPen = testShell.ArmorPierce;
+            float kdAtMetalPen = testShell.RawKD;
+            float minKDToPenMetal = testScheme.GetRequiredKD(testShell.ArmorPierce, impactAngle, false);
+
+            testScheme.LayerList.Clear();
+            testScheme.LayerList.Add(Layer.HeavyWedgeShallow);
+            testScheme.CalculateLayerAC();
+            float minVelocityToPenHeavy = testScheme.CalculateMinVelocityToPenetrate(testShell, impactAngle);
+            float minRecoilToPenHeavy = testShell.CalculateMinTotalRecoilForVelocity(minVelocityToPenHeavy);
+            testShell.TotalRecoil = minRecoilToPenHeavy;
+            testShell.CalculateDamageByType(DamageType.Kinetic, 0);
+            float apAtHeavyPen = testShell.ArmorPierce;
+            float kdAtHeavyPen = testShell.RawKD;
+            float minKDToPenHeavy = testScheme.GetRequiredKD(testShell.ArmorPierce, impactAngle, false);
+
+            Assert.AreEqual(minVelocityToPenAir, 0);
+            Assert.IsTrue(kdAtMetalPen >= minKDToPenMetal * 0.999f); // for floating point errors
+            Assert.IsTrue(kdAtHeavyPen >= minKDToPenHeavy * 0.999f);
+        }
+
+        [Test]
         public void ReloadTimeTest()
         {
             float[] testModuleCounts = [1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0];
@@ -361,32 +451,32 @@ namespace ApsCalcUITests
             testShellAP.CalculateDamageModifierByType(DamageType.Kinetic);
             testShellAP.CalculateDamageByType(DamageType.Kinetic, fragAngleMultiplier);
             testShellAP.CalculateDpsByType(
-                DamageType.Kinetic, 
-                1f, 
-                1800, 
-                500, 
-                250, 
-                600, 
-                60, 
-                5, 
-                false, 
-                testScheme, 
+                DamageType.Kinetic,
+                1f,
+                1800,
+                500,
+                250,
+                600,
+                60,
+                5,
+                false,
+                testScheme,
                 directHitAngleFromPerpendicularDegrees);
             float nonSabotDirectHit = testShellAP.DamageDict[DamageType.Kinetic];
 
             testShellAP.NonSabotAngleMultiplier = MathF.Abs(MathF.Cos(nonDirectHitAngleFromPerpendicularDegrees * MathF.PI / 180));
             testShellAP.SabotAngleMultiplier = MathF.Abs(MathF.Cos(nonDirectHitAngleFromPerpendicularDegrees * MathF.PI / 240));
             testShellAP.CalculateDpsByType(
-                DamageType.Kinetic, 
-                1f, 
-                1800, 
-                500, 
-                250, 
-                600, 
-                60, 
-                5, 
-                false, 
-                testScheme, 
+                DamageType.Kinetic,
+                1f,
+                1800,
+                500,
+                250,
+                600,
+                60,
+                5,
+                false,
+                testScheme,
                 nonDirectHitAngleFromPerpendicularDegrees);
             float nonSabotNonDirectHit = testShellAP.DamageDict[DamageType.Kinetic];
             Assert.AreEqual(nonSabotDirectHit, testShellAP.RawKD);

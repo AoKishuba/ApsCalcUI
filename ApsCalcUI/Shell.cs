@@ -22,7 +22,7 @@ namespace ApsCalcUI
         bool isDif
             )
     {
-        private const float ApsModifier = 23; // Used as global multiplier in damage calculations
+        public static readonly float ApsModifier = 23; // Used as global multiplier in damage calculations
         public float Gauge { get; set; } = gauge;
         public float GaugeMultiplier { get; set; } = gaugeMultiplier;
 
@@ -469,10 +469,10 @@ namespace ApsCalcUI
         public float CalculateMaxProjectileLengthForInaccuracy(float maxBarrelLengthInM, float desiredInaccuracy)
         {
             CalculateInaccuracyModifier();
-            float maxProjectileLength =
+            float maxProjectileLengthInM =
                 MathF.Pow(maxBarrelLengthInM / 4f / MathF.Pow(0.3f / desiredInaccuracy * OverallInaccuracyModifier, 2.5f), 4f / 3f);
 
-            return maxProjectileLength * 1000f;
+            return maxProjectileLengthInM * 1000f;
         }
 
 
@@ -520,13 +520,24 @@ namespace ApsCalcUI
             Velocity = MathF.Sqrt(TotalRecoil * 85f * Gauge / (GaugeMultiplier * ProjectileLength)) * OverallVelocityModifier;
         }
 
+        /// <summary>
+        /// Calculates minimum total recoil needed to achieve given velocity and effective range
+        /// </summary>
+        public float CalculateMinTotalRecoilForVelocity(float velocity)
+        {
+            float minRecoil = MathF.Pow(velocity / OverallVelocityModifier, 2)
+                * (GaugeMultiplier * ProjectileLength)
+                / (Gauge * 85f);
+            minRecoil = MathF.Max(0, minRecoil);
+
+            return minRecoil;
+        }
 
         /// <summary>
         /// Calculates minimum total recoil needed to achieve given velocity and effective range
         /// </summary>
-        public float CalculateMinRecoilForVelocityandRange(float minVelocityInput, float minRangeInput)
+        public float CalculateMinRecoilForVelocityAndRange(float minVelocityInput, float minRangeInput)
         {
-            CalculateRecoil();
             // Calculate effective time
             float gravityCompensatorCount = BodyModuleCounts[Module.GravCompensatorIndex];
             float effectiveTime = 10f * OverallVelocityModifier * (ProjectileLength / 1000f) * (1f + gravityCompensatorCount);
@@ -535,10 +546,10 @@ namespace ApsCalcUI
             float minVelocity = MathF.Max(minVelocityInput, minRangeInput / effectiveTime);
 
             // Calculate total recoil required for either range or velocity
-            float minDrawVelocity = MathF.Pow(minVelocity / OverallVelocityModifier, 2)
+            float minRecoil = MathF.Pow(minVelocity / OverallVelocityModifier, 2)
                 * (GaugeMultiplier * ProjectileLength)
                 / (Gauge * 85f);
-            float minRecoil = MathF.Max(0, minDrawVelocity);
+            minRecoil = MathF.Max(0, minRecoil);
 
             return minRecoil;
         }
@@ -546,7 +557,7 @@ namespace ApsCalcUI
         /// <summary>
         /// Calculates minimum rail draw needed to achieve given velocity and effective range
         /// </summary>
-        public float CalculateMinDrawForVelocityandRange(float minVelocityInput, float minRangeInput)
+        public float CalculateMinDrawForVelocityAndRange(float minVelocityInput, float minRangeInput)
         {
             CalculateRecoil();
             // Calculate effective time

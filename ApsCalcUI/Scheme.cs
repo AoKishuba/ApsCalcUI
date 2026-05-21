@@ -77,6 +77,101 @@ namespace ApsCalcUI
             return requiredKD;
         }
 
+        /// <summary>
+        /// Minimum value of Shell.Velocity at which the shell would penetrate this scheme.
+        /// Returns 0 for an empty scheme. Returns float.PositiveInfinity if the shell has
+        /// zero AP or zero KD coefficient (no velocity will pen).
+        /// Assumes shell modifiers (OverallVelocityModifier, OverallKineticDamageModifier,
+        /// OverallArmorPierceModifier, EffectiveProjectileModuleCount) and
+        /// per-layer AC have already been computed by the caller.
+        /// </summary>
+        public float CalculateMinVelocityToPenetrate(Shell shell, float impactAngleFromPerpendicularDegrees)
+        {
+            if (LayerList.Count == 0) return 0f;
+
+            // AP / V
+            float alpha = shell.OverallArmorPierceModifier * 0.0175f;
+            // KD / V
+            float beta = shell.GaugeMultiplier
+                       * shell.EffectiveProjectileModuleCount
+                       * shell.OverallKineticDamageModifier
+                       * 0.16f
+                       * Shell.ApsModifier;
+            if (shell.HeadModule != Module.HollowPoint)
+            {
+                beta *= MathF.Pow(500f / MathF.Max(shell.Gauge, 100f), 0.15f);
+            }
+
+            if (alpha <= 0f || beta <= 0f) return float.PositiveInfinity;
+
+            // KD-path coefficients (with angle factor, layer.AC)
+            float angleDivisor = shell.HeadModule == Module.SabotHead ? 240f : 180f;
+            int layerCount = LayerList.Count;
+            float[] hpArray = new float[layerCount];
+            float[] acArray = new float[layerCount];
+            float baseAngle = 0f;
+            for (int layerIndex = 0; layerIndex < layerCount; layerIndex++)
+            {
+                Layer layer = LayerList[layerIndex];
+                if (!layer.GivesACBonus) baseAngle = layer.BaseAngle;
+                hpArray[layerIndex] = layer.HP / MathF.Abs(MathF.Cos((impactAngleFromPerpendicularDegrees + baseAngle) * MathF.PI / angleDivisor));
+                acArray[layerIndex] = layer.AC;
+            }
+            float vKD = SolveMinPenVelocity(hpArray, acArray, alpha, beta);
+
+            // HollowPoint also has a thump-destroy path (no angle factor, RawAC)
+            if (shell.HeadModule == Module.HollowPoint)
+            {
+                for (int layerIndex = 0; layerIndex < layerCount; layerIndex++)
+                {
+                    hpArray[layerIndex] = LayerList[layerIndex].HP;
+                    acArray[layerIndex] = LayerList[layerIndex].RawAC;
+                }
+                float vThump = SolveMinPenVelocity(hpArray, acArray, alpha, beta);
+                return MathF.Min(vKD, vThump);
+            }
+
+            return vKD;
+        }
+
+        private static float SolveMinPenVelocity(float[] hpArray, float[] acArray, float alpha, float beta)
+        {
+            int layerCount = hpArray.Length;
+
+            // Sort layer indices by AC ascending so breakpoints v_k = ac[idx[k]] / alpha increase
+            int[] idx = new int[layerCount];
+            for (int i = 0; i < layerCount; i++) idx[i] = i;
+            Array.Sort(idx, (a, b) => acArray[a].CompareTo(acArray[b]));
+
+            // Initial sums at k = 0 (no layers activated)
+            float S = 0f;
+            float T = 0f;
+            for (int layerIndex = 0; layerIndex < layerCount; layerIndex++) T += hpArray[layerIndex] * acArray[layerIndex];
+
+            for (int k = 0; k <= layerCount; k++)
+            {
+                float vCandidate = (S + MathF.Sqrt(S * S + 4f * beta * T / alpha)) / (2f * beta);
+
+                float lo = k == 0 ? 0f : acArray[idx[k - 1]] / alpha;
+                float hi = k == layerCount ? float.PositiveInfinity : acArray[idx[k]] / alpha;
+
+                if (vCandidate >= lo && vCandidate <= hi)
+                {
+                    return vCandidate;
+                }
+
+                if (k < layerCount)
+                {
+                    int j = idx[k];
+                    S += hpArray[j];
+                    T -= hpArray[j] * acArray[j];
+                }
+            }
+
+            // Monotonicity guarantees one of the intervals matches; this is unreachable.
+            return float.PositiveInfinity;
+        }
+
 
         /// <summary>
         /// Calculates thump damage required to destroy all armor at given AP
