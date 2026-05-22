@@ -639,12 +639,12 @@ namespace ApsCalcUI
                     ImpactAngle = (float)ImpactAngleUD.Value
                 };
 
-                List<int> headIndexList = [];
+                List<int> headIndices = [];
                 foreach (HeadModuleItem head in HeadModulesCL.CheckedItems)
                 {
-                    headIndexList.Add(head.Index);
+                    headIndices.Add(head.Index);
                 }
-                testParameters.HeadIndexList = headIndexList;
+                testParameters.HeadIndices = headIndices;
 
                 if (BaseBleederRB.Checked)
                 {
@@ -799,13 +799,13 @@ namespace ApsCalcUI
                 if (testParameters.DamageType == DamageType.HEAT)
                 {
                     // Overwrite head list with shaped charge head
-                    testParameters.HeadIndexList.Clear();
+                    testParameters.HeadIndices.Clear();
                     int modIndex = 0;
                     foreach (Module head in Module.AllModules)
                     {
                         if (head == Module.ShapedChargeHead)
                         {
-                            testParameters.HeadIndexList.Add(modIndex);
+                            testParameters.HeadIndices.Add(modIndex);
                             break;
                         }
                         modIndex++;
@@ -814,13 +814,13 @@ namespace ApsCalcUI
                 else if (testParameters.DamageType == DamageType.Disruptor)
                 {
                     // Overwrite head list with disruptor conduit
-                    testParameters.HeadIndexList.Clear();
+                    testParameters.HeadIndices.Clear();
                     int modIndex = 0;
                     foreach (Module head in Module.AllModules)
                     {
                         if (head == Module.Disruptor)
                         {
-                            testParameters.HeadIndexList.Add(modIndex);
+                            testParameters.HeadIndices.Add(modIndex);
                             break;
                         }
                         modIndex++;
@@ -941,7 +941,7 @@ namespace ApsCalcUI
                                 testParameters.BarrelCount,
                                 gauge,
                                 MathF.Pow(gauge / 500f, 1.8f),
-                                testParameters.HeadIndexList,
+                                testParameters.HeadIndices,
                                 testParameters.BaseModule,
                                 testParameters.FixedModulecounts,
                                 testParameters.MinModulecount,
@@ -1003,7 +1003,7 @@ namespace ApsCalcUI
                                 testParameters.BarrelCount,
                                 0f, // Gauge does not matter for calcFinal because it is only running tests on pre-calculated shells
                                 0f, // Gauge multiplier ""
-                                testParameters.HeadIndexList,
+                                testParameters.HeadIndices,
                                 testParameters.BaseModule,
                                 testParameters.FixedModulecounts,
                                 testParameters.MinModulecount,

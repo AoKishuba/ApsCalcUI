@@ -327,6 +327,8 @@ namespace ApsCalcUITests
             float minKDToPenHeavy = testScheme.GetRequiredKD(testShell.ArmorPierce, impactAngle, false);
 
             Assert.AreEqual(minVelocityToPenAir, 0);
+            Assert.IsTrue(apAtMetalPen > 0);
+            Assert.IsTrue(apAtHeavyPen > 0);
             Assert.IsTrue(kdAtMetalPen >= minKDToPenMetal * 0.999f); // for floating point errors
             Assert.IsTrue(kdAtHeavyPen >= minKDToPenHeavy * 0.999f);
         }

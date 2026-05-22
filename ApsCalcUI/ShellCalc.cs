@@ -483,7 +483,7 @@ namespace ApsCalcUI
         /// Generate valid body module configurations for each loader bracket being tested
         /// </summary>
         /// <returns>Everything but the casings and rail draw</returns>
-        IEnumerable<Shell> GenerateProjectiles()
+        IEnumerable<ModuleConfig> GenerateProjectiles()
         {
             foreach (int headIndex in HeadIndexList)
             {
@@ -506,25 +506,125 @@ namespace ApsCalcUI
                     FiringPieceIsDif
                     );
                 FixedModuleCounts.CopyTo(shellUnderTesting.BodyModuleCounts, 0);
+                bool usesDefuse = shellUnderTesting.BodyModuleCounts[Module.DefuseIndex] > 0;
 
             foreach (LoaderBracket bracket in LoaderBrackets)
                 {
-                    if (bracket.LoaderType != LoaderType.Regular)
+                    if (bracket.LoaderType != LoaderType.Regular || !usesDefuse)
                     {
                         // Only regular loaders can use defuse
                         shellUnderTesting.BodyModuleCounts[Module.DefuseIndex] = 0;
                     }
+                    else
+                    {
+                        shellUnderTesting.BodyModuleCounts[Module.DefuseIndex] = 1;
+                    }
+                    shellUnderTesting.CalculateLengths();
                     int maxModuleCount = 20 - (int)FixedModuleTotal;
-                    float globalMinLength = MinShellLength;
-                    float globalMaxLength = MaxShellLength;
+                    float bracketMinLength = MathF.Max(MinShellLength, bracket.MinLengthMMExclusive) - shellUnderTesting.ProjectileLength;
+                    float bracketMaxLength = MathF.Min(MaxShellLength, bracket.MaxLengthMMInclusive);
                     if (LimitBarrelLength)
                     {
-                        globalMaxLength = MathF.Min(globalMaxLength, shellUnderTesting.CalculateMaxProjectileLengthForInaccuracy(MaxBarrelLengthInM, MaxInaccuracy));
+                        bracketMaxLength = MathF.Min(bracketMaxLength, shellUnderTesting.CalculateMaxProjectileLengthForInaccuracy(MaxBarrelLengthInM, MaxInaccuracy));
                     }
-                    yield return shellUnderTesting;
+                    bracketMaxLength -= shellUnderTesting.ProjectileLength;
+
+                    Module varMod0 = Module.AllModules[VariableModuleIndices[0]];
+                    float var0Length = MathF.Min(varMod0.MaxLength, Gauge);
+                    int var0MaxCount = (int)Math.Min(maxModuleCount, MathF.Floor(bracketMaxLength / var0Length));
+                    for (int var0Count = 0; var0Count <= var0MaxCount; var0Count++)
+                    {
+                        int var1ModuleCount = maxModuleCount - var0Count;
+                        float var1MaxLength = bracketMaxLength - var0Length * var0Count;
+
+                        Module varMod1 = Module.AllModules[VariableModuleIndices[1]];
+                        float var1Length = MathF.Min(varMod1.MaxLength, Gauge);
+                        int var1MaxCount = varMod1 == varMod0 ? 0 : (int)MathF.Min(var1ModuleCount, MathF.Floor(bracketMaxLength / var1Length));
+                        for (int var1Count = 0; var1Count <= var1MaxCount; var1Count++)
+                        {
+                            int var2ModuleCount = maxModuleCount - var0Count - var1Count;
+                            float var2MaxLength = bracketMaxLength - var0Count * var0Length - var1Count * var1Length;
+
+                            Module varMod2 = Module.AllModules[VariableModuleIndices[2]];
+                            float var2Length = MathF.Min(varMod2.MaxLength, Gauge);
+                            int var2MaxCount = varMod2 == varMod0 ? 0 : (int)MathF.Min(var2ModuleCount, MathF.Floor(bracketMaxLength / var2Length));
+                            for (int var2Count = 0; var2Count <= var2MaxCount; var2Count++)
+                            {
+                                // und so weiter
+
+                                float[] variableModCounts =
+                                {
+                                    var0Count,
+                                    var1Count,
+                                    var2Count // and the rest
+                                };
+
+                                for (int i = 0; i < VariableModuleIndices.Length; i ++)
+                                {
+                                    int modIndex = VariableModuleIndices[i];
+                                    shellUnderTesting.BodyModuleCounts[modIndex] += variableModCounts[i];
+                                }
+                                shellUnderTesting.GetModuleCounts();
+                                shellUnderTesting.CalculateLengths();
+                                shellUnderTesting.CalculateMaxDraw();
+                                // float projectileLength = shellUnderTesting.ProjectileLength + var0Length * var0Count + var1Length * var1Count...
+                                // calculate minVelocity for velocity, range, target penetration if any
+                                // calculate min recoil to reach velocity
+                                // calculate max shell recoil 
+                                // float minCasingsForLength = MathF.Ceiling((globalMinLength - projectileLength) / Gauge + 0.01f);
+                                // float maxCasingsForLength = MathF.Ceiling((globalMinLength - projectileLength) / Gauge);
+                                yield return new ModuleConfig
+                                {
+                                    GPCount = 0,
+                                    RGCount = 0, // casings
+                                    HeadIndex = headIndex
+                                    // varMod counts here
+                                };
+                            }
+                        }
+
+                    }                    
                 }
             }
         }
+
+        /*
+        bool PassesVelocityAndRecoilChecks(Shell shellUnderTesting, float maxCasingLength)
+        {
+            // Calculate min recoil
+            shellUnderTesting.GPCasingCount = 0;
+            shellUnderTesting.RGCasingCount = 0;
+            shellUnderTesting.CalculateLengths();
+            shellUnderTesting.GetModuleCounts();
+            shellUnderTesting.CalculateMaxDraw();
+            shellUnderTesting.CalculateVelocityModifier();
+            shellUnderTesting.CalculateDamageModifierByType(DamageType.Kinetic);
+            TargetArmorScheme.CalculateLayerAC();
+            float minVelocity = MathF.Max(MinVelocityInput, TargetArmorScheme.CalculateMinVelocityToPenetrate(shellUnderTesting, ImpactAngleFromPerpendicularDegrees));
+            float minTotalRecoil = shellUnderTesting.CalculateMinRecoilForVelocityAndRange(minVelocity, MinEffectiveRangeInput);
+            float maxCasingCount = MathF.Min(20f - shellUnderTesting.ModuleCountTotal, maxCasingLength / Gauge);
+
+            // RG casings get recoil buff, so try to use as many as possible before going to GP
+            float maxDraw = MathF.Min(MaxDrawInput, shellUnderTesting.MaxDrawShell);
+            float maxCasingDraw = maxDraw - shellUnderTesting.MaxDrawShell;
+            float drawPerCasing = shellUnderTesting.DrawPerProjectileModule * shellUnderTesting.RGCasingDrawMultiplier;
+            float maxRGCasingCount = MathF.Min(MaxRGInput, MathF.Min(maxCasingCount, maxCasingDraw / drawPerCasing));
+
+            shellUnderTesting.RGCasingCount = maxRGCasingCount;
+            shellUnderTesting.CalculateMaxDraw();
+            float maxDrawShell = shellUnderTesting.MaxDrawShell;
+            float maxDrawCasing = shellUnderTesting.MaxDrawCasing;
+            float minGPRecoil = minTotalRecoil - maxDrawShell;
+            
+            float minGPCasingCount = minGPRecoil / shellUnderTesting.GPRecoilPerCasing;
+            // Can't remove partial casings
+            float minGPModuleSlots = MathF.Ceiling(minGPCasingCount);
+
+
+            // Check 
+
+        }
+        */
 
         /// <summary>
         /// Generate only projectile modules; casings to be evaluated separately
