@@ -164,6 +164,7 @@ namespace ApsCalcUI
             RegularClipCountLabel = new System.Windows.Forms.Label();
             BeltfedClipCountLabel = new System.Windows.Forms.Label();
             CasingIncrementLabel = new System.Windows.Forms.Label();
+            NewTestCB = new System.Windows.Forms.CheckBox();
             ((System.ComponentModel.ISupportInitialize)MinGaugeUD).BeginInit();
             ((System.ComponentModel.ISupportInitialize)MaxGaugeUD).BeginInit();
             ((System.ComponentModel.ISupportInitialize)SolidBodyFixedUD).BeginInit();
@@ -1719,6 +1720,18 @@ namespace ApsCalcUI
             CasingIncrementLabel.TabIndex = 62;
             CasingIncrementLabel.Text = "Casing Increment";
             // 
+            // NewTestCB
+            // 
+            NewTestCB.AutoSize = true;
+            NewTestCB.ForeColor = System.Drawing.SystemColors.ControlText;
+            NewTestCB.Location = new System.Drawing.Point(629, 560);
+            NewTestCB.Name = "NewTestCB";
+            NewTestCB.Size = new System.Drawing.Size(112, 19);
+            NewTestCB.TabIndex = 65;
+            NewTestCB.Text = "Super secret test";
+            ToolTip.SetToolTip(NewTestCB, "Don't check this. If this is in a production version, tell Ao he screwed up");
+            NewTestCB.UseVisualStyleBackColor = true;
+            // 
             // ParameterInput
             // 
             AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
@@ -1726,6 +1739,7 @@ namespace ApsCalcUI
             AutoScroll = true;
             BackColor = System.Drawing.SystemColors.Window;
             ClientSize = new System.Drawing.Size(800, 726);
+            Controls.Add(NewTestCB);
             Controls.Add(VerboseOutputCB);
             Controls.Add(CasingIncrementUD);
             Controls.Add(CasingIncrementLabel);
@@ -1986,6 +2000,7 @@ namespace ApsCalcUI
         private System.Windows.Forms.NumericUpDown CasingIncrementUD;
         private System.Windows.Forms.Label CasingIncrementLabel;
         private System.Windows.Forms.CheckBox VerboseOutputCB;
+        private System.Windows.Forms.CheckBox NewTestCB;
     }
 }
 

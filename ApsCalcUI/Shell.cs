@@ -77,6 +77,7 @@ namespace ApsCalcUI
         public float RGCasingFeltRecoilMultiplier { get; } = 0.6f;
         public float GPRecoil { get; set; }
         public float MaxDrawCasing { get; set; }
+        public float MaxDrawProjectile { get; set; }
         public float MaxDrawShell { get; set; }
         public float RailDraw { get; set; }
         public float FeltRecoil { get; set; }
@@ -192,6 +193,11 @@ namespace ApsCalcUI
 
         // Cost per Volume
         public float CostPerVolume { get; set; }
+
+        public static float CalculateGaugeMultiplier(float gauge)
+        {
+            return MathF.Pow(gauge / 500f, 1.8f);
+        }
 
 
         /// <summary>
@@ -419,24 +425,24 @@ namespace ApsCalcUI
 
             if (!GunUsesRecoilAbsorbers)
             {
-                OverallInaccuracyModifier *= 1f + 0.6f * TotalRecoil / 12500f / GaugeMultiplier;
+                OverallInaccuracyModifier *= 1f + 0.6f * FeltRecoil / 12500f / GaugeMultiplier;
             }
         }
 
         /// <summary>
-        /// Calculates max allowed GP recoil for given inaccuracy (only affects guns without recoil absorbers)
+        /// Calculates max allowed felt recoil for given inaccuracy (only affects guns without recoil absorbers)
         /// </summary>
         /// <param name="maxBarrelLengthInM">Max allowed barrel length for inaccuracy</param>
         /// <param name="desiredInaccuracy">Desired inaccuracy value, in degrees</param>
-        public float CalculateMaxRecoilForInaccuracy(float maxBarrelLengthInM, float desiredInaccuracy)
+        public float CalculateMaxFeltRecoilForInaccuracy(float maxBarrelLengthInM, float desiredInaccuracy)
         {
-            float maxGPRecoilForInaccuracy =
+            float maxFeltRecoilForInaccuracy =
                 (MathF.Pow(
                     MathF.Pow(ProjectileLength / 1000f, 3f / 4f) / maxBarrelLengthInM * 4f, 1f / 2.5f)
                 / 0.3f * desiredInaccuracy / OverallInaccuracyModifier - 1f)
                 / 0.6f * 12500f * GaugeMultiplier;
 
-            return maxGPRecoilForInaccuracy;
+            return maxFeltRecoilForInaccuracy;
         }
 
 
@@ -497,7 +503,8 @@ namespace ApsCalcUI
         public void CalculateMaxDraw()
         {
             MaxDrawCasing = DrawPerProjectileModule * RGCasingDrawMultiplier * RGCasingCount;
-            MaxDrawShell = MaxDrawCasing + DrawPerProjectileModule * EffectiveProjectileModuleCount;
+            MaxDrawProjectile = DrawPerProjectileModule * EffectiveProjectileModuleCount;
+            MaxDrawShell = MaxDrawCasing + MaxDrawProjectile;
         }
 
 

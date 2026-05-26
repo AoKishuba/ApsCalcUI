@@ -3,20 +3,17 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Windows.Forms.VisualStyles;
+using System.Runtime.CompilerServices;
+
+[assembly: InternalsVisibleTo("ApsCalcUITests")]
 
 namespace ApsCalcUI
 {
-    public struct Neighborhood
-    {
-        public float centerGP;
-        public float centerRG;
-        public float bottomRG;
-        public float topRG;
-    }
+    public readonly record struct Neighborhood(float CenterGP, float CenterRG, float BottomRG, float TopRG);
 
     public struct ModuleConfig
     {
+        public LoaderBracket Bracket;
         public int HeadIndex;
         public float[] VariableModCounts;
         public float GPCount;
@@ -25,11 +22,8 @@ namespace ApsCalcUI
 
     public enum LoaderType { Regular, Belt, Dif }
 
-    readonly record struct LoaderBracket(float MinLengthMMExclusive, float MaxLengthMMInclusive, LoaderType LoaderType)
+    public readonly record struct LoaderBracket(float MinLengthMMExclusive, float MaxLengthMMInclusive, LoaderType LoaderType)
     {
-        public bool Overlaps(float min, float max)
-            => MinLengthMMExclusive < max && MaxLengthMMInclusive >= min;
-
         public string DisplayName => LoaderType switch
         {
             LoaderType.Dif      => "DIF",
@@ -75,7 +69,7 @@ namespace ApsCalcUI
         /// <param name="gauge">Desired gauge in mm</param>
         /// <param name="gaugeMultiplier">(gauge / 500mm)^1.8; used for many calculations</param>
         /// <param name="headIndexList">List of module indices for every module to be used as head</param>
-        /// <param name="baseModule">The special base module, if any</param>
+        /// <param name="baseModule">Special base module, if any</param>
         /// <param name="fixedModuleCounts">An array of integers representing number of shells at that index in module list</param>
         /// <param name="fixedModuleTotal">Minimum number of modules on every shell</param>
         /// <param name="variableModuleIndices">Module indices of modules to be used in varying numbers in testing</param>
@@ -480,11 +474,13 @@ namespace ApsCalcUI
         }
 
         /// <summary>
-        /// Generate valid body module configurations for each loader bracket being tested
+        /// Generate valid body module configurations for each loader bracket being tested.
         /// </summary>
-        /// <returns>Everything but the casings and rail draw</returns>
+        /// <returns>Module configurations with bracket assigned; casings and rail draw to be added by caller</returns>
         IEnumerable<ModuleConfig> GenerateProjectiles()
         {
+            float[] scratchCounts = new float[VariableModuleIndices.Length];
+
             foreach (int headIndex in HeadIndexList)
             {
                 Shell shellUnderTesting = new(
@@ -503,229 +499,178 @@ namespace ApsCalcUI
                     0, // Casings will come later
                     RateOfFireRpm,
                     GunUsesRecoilAbsorbers,
-                    FiringPieceIsDif
-                    );
-                FixedModuleCounts.CopyTo(shellUnderTesting.BodyModuleCounts, 0);
-                bool usesDefuse = shellUnderTesting.BodyModuleCounts[Module.DefuseIndex] > 0;
+                    FiringPieceIsDif);
 
-            foreach (LoaderBracket bracket in LoaderBrackets)
+                FixedModuleCounts.CopyTo(shellUnderTesting.BodyModuleCounts, 0);
+                bool usesDefuse = shellUnderTesting.BodyModuleCounts[Module.DefuseIndex] > 0f;
+
+                foreach (LoaderBracket bracket in LoaderBrackets)
                 {
-                    if (bracket.LoaderType != LoaderType.Regular || !usesDefuse)
-                    {
-                        // Only regular loaders can use defuse
-                        shellUnderTesting.BodyModuleCounts[Module.DefuseIndex] = 0;
-                    }
-                    else
-                    {
-                        shellUnderTesting.BodyModuleCounts[Module.DefuseIndex] = 1;
-                    }
+                    ResetToFixedCounts(shellUnderTesting, bracket, usesDefuse);
+                    shellUnderTesting.GetModuleCounts();
                     shellUnderTesting.CalculateLengths();
-                    int maxModuleCount = 20 - (int)FixedModuleTotal;
-                    float bracketMinLength = MathF.Max(MinShellLength, bracket.MinLengthMMExclusive) - shellUnderTesting.ProjectileLength;
-                    float bracketMaxLength = MathF.Min(MaxShellLength, bracket.MaxLengthMMInclusive);
+
+                    int maxVariableModuleCount = 20 - (int)shellUnderTesting.ModuleCountTotal;
+                    float maxTotalLengthForBracket = MathF.Min(MaxShellLength, bracket.MaxLengthMMInclusive);
+                    float maxProjectileLengthForBracket = maxTotalLengthForBracket;
                     if (LimitBarrelLength)
                     {
-                        bracketMaxLength = MathF.Min(bracketMaxLength, shellUnderTesting.CalculateMaxProjectileLengthForInaccuracy(MaxBarrelLengthInM, MaxInaccuracy));
+                        maxProjectileLengthForBracket = MathF.Min(
+                            maxProjectileLengthForBracket,
+                            shellUnderTesting.CalculateMaxProjectileLengthForInaccuracy(MaxBarrelLengthInM, MaxInaccuracy));
                     }
-                    bracketMaxLength -= shellUnderTesting.ProjectileLength;
+                    float maxVariableLengthForBracket = maxProjectileLengthForBracket - shellUnderTesting.ProjectileLength;
 
-                    Module varMod0 = Module.AllModules[VariableModuleIndices[0]];
-                    float var0Length = MathF.Min(varMod0.MaxLength, Gauge);
-                    int var0MaxCount = (int)Math.Min(maxModuleCount, MathF.Floor(bracketMaxLength / var0Length));
-                    for (int var0Count = 0; var0Count <= var0MaxCount; var0Count++)
+                    foreach (ModuleConfig config in EnumerateVariableSlots(
+                        shellUnderTesting,
+                        bracket,
+                        headIndex,
+                        usesDefuse,
+                        scratchCounts,
+                        depth: 0,
+                        remainingModuleBudget: maxVariableModuleCount,
+                        remainingLengthBudget: maxVariableLengthForBracket,
+                        maxTotalLengthForBracket: maxTotalLengthForBracket))
                     {
-                        int var1ModuleCount = maxModuleCount - var0Count;
-                        float var1MaxLength = bracketMaxLength - var0Length * var0Count;
-
-                        Module varMod1 = Module.AllModules[VariableModuleIndices[1]];
-                        float var1Length = MathF.Min(varMod1.MaxLength, Gauge);
-                        int var1MaxCount = varMod1 == varMod0 ? 0 : (int)MathF.Min(var1ModuleCount, MathF.Floor(bracketMaxLength / var1Length));
-                        for (int var1Count = 0; var1Count <= var1MaxCount; var1Count++)
-                        {
-                            int var2ModuleCount = maxModuleCount - var0Count - var1Count;
-                            float var2MaxLength = bracketMaxLength - var0Count * var0Length - var1Count * var1Length;
-
-                            Module varMod2 = Module.AllModules[VariableModuleIndices[2]];
-                            float var2Length = MathF.Min(varMod2.MaxLength, Gauge);
-                            int var2MaxCount = varMod2 == varMod0 ? 0 : (int)MathF.Min(var2ModuleCount, MathF.Floor(bracketMaxLength / var2Length));
-                            for (int var2Count = 0; var2Count <= var2MaxCount; var2Count++)
-                            {
-                                // und so weiter
-
-                                float[] variableModCounts =
-                                {
-                                    var0Count,
-                                    var1Count,
-                                    var2Count // and the rest
-                                };
-
-                                for (int i = 0; i < VariableModuleIndices.Length; i ++)
-                                {
-                                    int modIndex = VariableModuleIndices[i];
-                                    shellUnderTesting.BodyModuleCounts[modIndex] += variableModCounts[i];
-                                }
-                                shellUnderTesting.GetModuleCounts();
-                                shellUnderTesting.CalculateLengths();
-                                shellUnderTesting.CalculateMaxDraw();
-                                // float projectileLength = shellUnderTesting.ProjectileLength + var0Length * var0Count + var1Length * var1Count...
-                                // calculate minVelocity for velocity, range, target penetration if any
-                                // calculate min recoil to reach velocity
-                                // calculate max shell recoil 
-                                // float minCasingsForLength = MathF.Ceiling((globalMinLength - projectileLength) / Gauge + 0.01f);
-                                // float maxCasingsForLength = MathF.Ceiling((globalMinLength - projectileLength) / Gauge);
-                                yield return new ModuleConfig
-                                {
-                                    GPCount = 0,
-                                    RGCount = 0, // casings
-                                    HeadIndex = headIndex
-                                    // varMod counts here
-                                };
-                            }
-                        }
-
-                    }                    
+                        yield return config;
+                    }
                 }
             }
         }
 
-        /*
+        /// <summary>
+        /// Recursive helper for GenerateProjectiles.
+        /// </summary>
+        private IEnumerable<ModuleConfig> EnumerateVariableSlots(
+            Shell shellUnderTesting,
+            LoaderBracket bracket,
+            int headIndex,
+            bool usesDefuse,
+            float[] scratchCounts,
+            int depth,
+            int remainingModuleBudget,
+            float remainingLengthBudget,
+            float maxTotalLengthForBracket)
+        {
+            if (depth == VariableModuleIndices.Length)
+            {
+                ResetToFixedCounts(shellUnderTesting, bracket, usesDefuse);
+                for (int i = 0; i < VariableModuleIndices.Length; i++)
+                {
+                    shellUnderTesting.BodyModuleCounts[VariableModuleIndices[i]] += scratchCounts[i];
+                }
+                shellUnderTesting.CalculateLengths();
+                float maxCasingLengthForBracket = MathF.Floor(maxTotalLengthForBracket - shellUnderTesting.ProjectileLength);
+
+                if (PassesVelocityAndRecoilChecks(shellUnderTesting, maxCasingLengthForBracket))
+                {
+                    yield return new ModuleConfig
+                    {
+                        Bracket = bracket,
+                        HeadIndex = headIndex,
+                        GPCount = 0,
+                        RGCount = 0,
+                        VariableModCounts = (float[])scratchCounts.Clone()
+                    };
+                }
+                yield break;
+            }
+
+            // Deduplicate variable module indices
+            // This could be removed after migrating to new projectile generation method
+            // (and removing VariableModuleIndices padding in ParameterInput, which was only there
+            // for non-recursive old method)
+            bool duplicateOfEarlierSlot = false;
+            for (int prior = 0; prior < depth; prior++)
+            {
+                if (VariableModuleIndices[prior] == VariableModuleIndices[depth])
+                {
+                    duplicateOfEarlierSlot = true;
+                    break;
+                }
+            }
+
+            Module mod = Module.AllModules[VariableModuleIndices[depth]];
+            float modLength = MathF.Min(mod.MaxLength, Gauge);
+            int maxCount = duplicateOfEarlierSlot
+                ? 0
+                : (int)MathF.Min(remainingModuleBudget, MathF.Floor(remainingLengthBudget / modLength));
+
+            for (int count = 0; count <= maxCount; count++)
+            {
+                scratchCounts[depth] = count;
+                foreach (ModuleConfig config in EnumerateVariableSlots(
+                    shellUnderTesting,
+                    bracket,
+                    headIndex,
+                    usesDefuse,
+                    scratchCounts,
+                    depth + 1,
+                    remainingModuleBudget - count,
+                    remainingLengthBudget - count * modLength,
+                    maxTotalLengthForBracket))
+                {
+                    yield return config;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Resets BodyModuleCounts to FixedModuleCounts
+        /// </summary>
+        private void ResetToFixedCounts(Shell shell, LoaderBracket bracket, bool usesDefuse)
+        {
+            FixedModuleCounts.CopyTo(shell.BodyModuleCounts, 0);
+            shell.BodyModuleCounts[Module.DefuseIndex] =
+                (bracket.LoaderType == LoaderType.Regular && usesDefuse) ? 1f : 0f;
+        }
+
         bool PassesVelocityAndRecoilChecks(Shell shellUnderTesting, float maxCasingLength)
         {
             // Calculate min recoil
-            shellUnderTesting.GPCasingCount = 0;
-            shellUnderTesting.RGCasingCount = 0;
-            shellUnderTesting.CalculateLengths();
             shellUnderTesting.GetModuleCounts();
             shellUnderTesting.CalculateMaxDraw();
             shellUnderTesting.CalculateVelocityModifier();
             shellUnderTesting.CalculateDamageModifierByType(DamageType.Kinetic);
-            TargetArmorScheme.CalculateLayerAC();
             float minVelocity = MathF.Max(MinVelocityInput, TargetArmorScheme.CalculateMinVelocityToPenetrate(shellUnderTesting, ImpactAngleFromPerpendicularDegrees));
             float minTotalRecoil = shellUnderTesting.CalculateMinRecoilForVelocityAndRange(minVelocity, MinEffectiveRangeInput);
-            float maxCasingCount = MathF.Min(20f - shellUnderTesting.ModuleCountTotal, maxCasingLength / Gauge);
-
-            // RG casings get recoil buff, so try to use as many as possible before going to GP
-            float maxDraw = MathF.Min(MaxDrawInput, shellUnderTesting.MaxDrawShell);
-            float maxCasingDraw = maxDraw - shellUnderTesting.MaxDrawShell;
-            float drawPerCasing = shellUnderTesting.DrawPerProjectileModule * shellUnderTesting.RGCasingDrawMultiplier;
-            float maxRGCasingCount = MathF.Min(MaxRGInput, MathF.Min(maxCasingCount, maxCasingDraw / drawPerCasing));
-
-            shellUnderTesting.RGCasingCount = maxRGCasingCount;
-            shellUnderTesting.CalculateMaxDraw();
-            float maxDrawShell = shellUnderTesting.MaxDrawShell;
-            float maxDrawCasing = shellUnderTesting.MaxDrawCasing;
-            float minGPRecoil = minTotalRecoil - maxDrawShell;
+            float maxFeltRecoil = GunUsesRecoilAbsorbers ?
+                MaxRecoilInput                
+                : MathF.Min(MaxRecoilInput, shellUnderTesting.CalculateMaxFeltRecoilForInaccuracy(MaxBarrelLengthInM, MaxInaccuracy));
             
-            float minGPCasingCount = minGPRecoil / shellUnderTesting.GPRecoilPerCasing;
-            // Can't remove partial casings
-            float minGPModuleSlots = MathF.Ceiling(minGPCasingCount);
+            // Coefficients, all derived from shell instance
+            float drawPerMod = shellUnderTesting.DrawPerProjectileModule;
+            float casingDrawMultiplier = shellUnderTesting.RGCasingDrawMultiplier;
+            float casingFeltRecoilMultiplier = shellUnderTesting.RGCasingFeltRecoilMultiplier;
+            float gpRecoilPerCasing = shellUnderTesting.GPRecoilPerCasing;
 
+            float slotBudget = 20f - shellUnderTesting.ModuleCountTotal + shellUnderTesting.GPCasingCount + shellUnderTesting.RGCasingCount;
+            float lengthBudget = maxCasingLength / Gauge;
+            float maxCasings = MathF.Min(slotBudget, lengthBudget);
 
-            // Check 
+            float maxRGCasings = MaxDrawInput / (drawPerMod * casingDrawMultiplier);
+            maxRGCasings = MathF.Min(MathF.Min(maxCasings, MaxRGInput), maxRGCasings);
 
-        }
-        */
+            float drawFromMaxCasings = drawPerMod * casingDrawMultiplier * maxRGCasings;             // ≤ MaxDrawInput by construction
 
-        /// <summary>
-        /// Generate only projectile modules; casings to be evaluated separately
-        /// </summary>
-        /// <returns>ModuleConfigs with head and body modules, but no casings</returns>
-        IEnumerable<ModuleConfig> GenerateProjectileConfigs()
-        {
-            float maxModuleCount = 20f - FixedModuleTotal;
-            float var0Max = maxModuleCount;
-            for (int headIndex = 0; headIndex < HeadIndexList.Count; headIndex++)
-            {
-                for (float var0Count = 0; var0Count <= var0Max; var0Count++)
-                {
-                    float var1Max = VariableModuleIndices[1] == VariableModuleIndices[0] ?
-                        0 : maxModuleCount - var0Count;
-                    for (float var1Count = 0; var1Count <= var1Max; var1Count++)
-                    {
-                        float var2Max = VariableModuleIndices[2] == VariableModuleIndices[0] ?
-                            0 : maxModuleCount - var0Count - var1Count;
-                        for (float var2Count = 0; var2Count <= var2Max; var2Count++)
-                        {
-                            float var3Max = VariableModuleIndices[3] == VariableModuleIndices[0] ?
-                                0 : maxModuleCount - var0Count - var1Count - var2Count;
-                            for (float var3Count = 0; var3Count <= var3Max; var3Count++)
-                            {
-                                float var4Max = VariableModuleIndices[4] == VariableModuleIndices[0] ?
-                                    0 : maxModuleCount - var0Count - var1Count - var2Count - var3Count;
-                                for (float var4Count = 0; var4Count <= var4Max; var4Count++)
-                                {
-                                    float var5Max = VariableModuleIndices[5] == VariableModuleIndices[0] ?
-                                        0 :
-                                        maxModuleCount
-                                        - var0Count
-                                        - var1Count
-                                        - var2Count
-                                        - var3Count
-                                        - var4Count;
-                                    for (float var5Count = 0; var5Count <= var5Max; var5Count++)
-                                    {
-                                        float var6Max = VariableModuleIndices[6] == VariableModuleIndices[0] ?
-                                            0 :
-                                            maxModuleCount
-                                            - var0Count
-                                            - var1Count
-                                            - var2Count
-                                            - var3Count
-                                            - var4Count
-                                            - var5Count;
-                                        for (float var6Count = 0; var6Count <= var6Max; var6Count++)
-                                        {
-                                            float var7Max = VariableModuleIndices[7] == VariableModuleIndices[0] ?
-                                                0 :
-                                                maxModuleCount
-                                                - var0Count
-                                                - var1Count
-                                                - var2Count
-                                                - var3Count
-                                                - var4Count
-                                                - var5Count
-                                                - var6Count;
-                                            for (float var7Count = 0; var7Count <= var7Max; var7Count++)
-                                            {
-                                                float var8Max = VariableModuleIndices[8] == VariableModuleIndices[0] ?
-                                                    0 :
-                                                    maxModuleCount
-                                                    - var0Count
-                                                    - var1Count
-                                                    - var2Count
-                                                    - var3Count
-                                                    - var4Count
-                                                    - var5Count
-                                                    - var6Count
-                                                    - var7Count;
-                                                for (float var8Count = 0; var8Count <= var8Max; var8Count++)
-                                                {
-                                                    yield return new ModuleConfig
-                                                    {
-                                                        HeadIndex = HeadIndexList[headIndex],
-                                                        VariableModCounts =
-                                                        [
-                                                            var0Count,
-                                                                    var1Count,
-                                                                    var2Count,
-                                                                    var3Count,
-                                                                    var4Count,
-                                                                    var5Count,
-                                                                    var6Count,
-                                                                    var7Count,
-                                                                    var8Count
-                                                        ]
-                                                    };
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            // Phase 1: efficient draw (rate κ felt per 1 total), capped by RG capacity and felt budget
+            float maxCasingDrawLimit = MathF.Min(drawFromMaxCasings, maxFeltRecoil / casingFeltRecoilMultiplier);
+            float feltUsed = casingFeltRecoilMultiplier * maxCasingDrawLimit;
+
+            // Phase 2: overflow draw (rate 1:1), capped by projectile-portion capacity, remaining input cap, remaining felt
+            float overflowCapacity = MathF.Max(0f, MathF.Min(shellUnderTesting.MaxDrawProjectile, MaxDrawInput - maxCasingDrawLimit));
+            float overflowDraw = MathF.Min(overflowCapacity, maxFeltRecoil - feltUsed);
+            feltUsed += overflowDraw;
+
+            float draw = maxCasingDrawLimit + overflowDraw;
+
+            // Phase 3: GP casings on any remaining felt + slot budget (rate 1:1, but unlike overflow draw,
+            //          uses module slots; useful when draw is at MaxDrawInput cap and felt budget remains)
+            float gpSlotsRemaining = MathF.Max(0f, MathF.Min(MaxGP, maxCasings - maxRGCasings));
+            float gpCount = MathF.Max(0f, MathF.Min(gpSlotsRemaining, (maxFeltRecoil - feltUsed) / gpRecoilPerCasing));
+
+            float maxAchievableTotal = gpRecoilPerCasing * gpCount + draw;
+            return maxAchievableTotal >= minTotalRecoil;
         }
 
         /// <summary>
@@ -945,7 +890,7 @@ namespace ApsCalcUI
         /// <param name="gpCount">GP casing count</param>
         /// <param name="rgCount">RG casing count</param>
         /// <returns>DPS per Cost or DPS per Volume, depending on test type</returns>
-        float ShellTest2(Module head, float[] variableModCounts,  float gpCount, float rgCount, LoaderType loaderType)
+        (float score, Shell shell) ShellTest2(Module head, float[] variableModCounts,  float gpCount, float rgCount)
         {
             float score = 0;
             Shell shellUnderTesting = new(
@@ -974,11 +919,6 @@ namespace ApsCalcUI
                 int moduleIndex = VariableModuleIndices[i];
                 float moduleCount = variableModCounts[i];
                 shellUnderTesting.BodyModuleCounts[moduleIndex] += moduleCount;
-            }
-            if (loaderType != LoaderType.Regular)
-            {
-                // Only regular loaders can use defuse
-                shellUnderTesting.BodyModuleCounts[Module.DefuseIndex] = 0;
             }
 
             shellUnderTesting.GetModuleCounts();
@@ -1051,19 +991,123 @@ namespace ApsCalcUI
                 }
             }
 
-            return score;
+            return (score, shellUnderTesting);
         }
 
 
         /// <summary>
+        /// Given an RG increment, compute (min, max) GP-increment range that satisfies
+        /// bracket length and recoil constraints. Returns (0, -1) when range is empty,
+        /// which caller's for-loop will skip naturally.
+        /// </summary>
+        internal static (int minGPInc, int maxGPInc) CalculateGPIncrementBounds(
+            int rgInc,
+            float gridSpacing,
+            float minCasingCountForBracket,
+            float maxCasingCountForBracket,
+            float minCasingRecoil,
+            float maxFeltRecoil,
+            float drawPerCasing,
+            float feltRecoilPerCasing,
+            float gpRecoilPerCasing,
+            float maxGPCap)
+        {
+            float rgCount = rgInc * gridSpacing;
+            float minGPForLength = minCasingCountForBracket - rgCount;
+            float minGPForRecoil = (minCasingRecoil - rgCount * drawPerCasing) / gpRecoilPerCasing;
+            float maxGPForLength = maxCasingCountForBracket - rgCount;
+            float maxGPForRecoil = (maxFeltRecoil - rgCount * feltRecoilPerCasing) / gpRecoilPerCasing;
+
+            float minGP = MathF.Max(0f, MathF.Max(minGPForLength, minGPForRecoil));
+            float maxGP = MathF.Min(maxGPCap, MathF.Min(maxGPForLength, maxGPForRecoil));
+
+            return ((int)MathF.Ceiling(minGP / gridSpacing), (int)MathF.Floor(maxGP / gridSpacing));
+        }
+
+        /// <summary>
+        /// Coarse-grid search over (gp, rg) at given gridSize. Returns set of grid
+        /// points that are at least as high as their four cardinal neighbors. Score function
+        /// is parameterized so tests can supply a synthetic scoring map.
+        /// </summary>
+        internal static HashSet<Neighborhood> FindCoarsePeaks(
+            int maxRGIncrementCount,
+            float gridSpacing,
+            Func<int, (int minGPInc, int maxGPInc)> gpRangeAtRG,
+            Func<float, float, float> score)
+        {
+            HashSet<Neighborhood> peaks = [];
+
+            for (int rgInc = 0; rgInc <= maxRGIncrementCount; rgInc++)
+            {
+                (int minGPInc, int maxGPInc) = gpRangeAtRG(rgInc);
+                for (int gpInc = minGPInc; gpInc <= maxGPInc; gpInc++)
+                {
+                    float gp = gpInc * gridSpacing;
+                    float rg = rgInc * gridSpacing;
+                    float leftGP = Math.Max(gpInc - 1, minGPInc) * gridSpacing;
+                    float rightGP = Math.Min(gpInc + 1, maxGPInc) * gridSpacing;
+                    float bottomRG = Math.Max(rgInc - 1, 0) * gridSpacing;
+                    float topRG = Math.Min(rgInc + 1, maxRGIncrementCount) * gridSpacing;
+
+                    float centerScore = score(gp, rg);
+                    if (score(gp, topRG) <= centerScore
+                     && score(gp, bottomRG) <= centerScore
+                     && score(leftGP, rg) <= centerScore
+                     && score(rightGP, rg) <= centerScore
+                     && centerScore > 0)
+                    {
+                        peaks.Add(new Neighborhood(gp, rg, bottomRG, topRG));
+                    }
+                }
+            }
+            return peaks;
+        }
+
+        /// <summary>
+        /// Fine-grid refinement within a single Neighborhood. Returns best-scoring
+        /// (gp, rg) point and its score. Score function is parameterized for testability.
+        /// </summary>
+        internal static (float gp, float rg, float score) RefineToFinePeak(
+            Neighborhood hood,
+            float spacing,
+            Func<float, (float minGP, float maxGP)> gpBoundsAtRG,
+            Func<float, float, float> score)
+        {
+            int bottomRGInc = (int)MathF.Ceiling(hood.BottomRG / spacing);
+            int topRGInc = (int)MathF.Floor(hood.TopRG / spacing);
+
+            float bestGP = 0f;
+            float bestRG = 0f;
+            float bestScore = float.NegativeInfinity;
+
+            for (int rgInc = bottomRGInc; rgInc <= topRGInc; rgInc++)
+            {
+                float rg = spacing * rgInc;
+                (float minGP, float maxGP) = gpBoundsAtRG(rg);
+                int minGPInc = (int)MathF.Ceiling(minGP / spacing);
+                int maxGPInc = (int)MathF.Floor(maxGP / spacing);
+
+                for (int gpInc = minGPInc; gpInc <= maxGPInc; gpInc++)
+                {
+                    float gp = spacing * gpInc;
+                    float currentScore = score(gp, rg);
+                    if (currentScore > bestScore)
+                    {
+                        bestGP = gp;
+                        bestRG = rg;
+                        bestScore = currentScore;
+                    }
+                }
+            }
+            return (bestGP, bestRG, bestScore);
+        }
+
+        /// <summary>
         /// Test shells using refined search algorithm
         /// </summary>
-        /// <returns></returns>
-        public List<Shell> BigTest()
+        public void BigTest()
         {
-            List<Shell> shellList = [];
-
-            foreach (ModuleConfig modConfig in GenerateModConfigs())
+            foreach (ModuleConfig modConfig in GenerateProjectiles())
             {
                 Shell shellUnderTesting = new(
                     BarrelCount,
@@ -1094,167 +1138,84 @@ namespace ApsCalcUI
                 }
 
                 shellUnderTesting.CalculateLengths();
-                bool lengthWithinBounds = true;
-                if (LimitBarrelLength
-                    && shellUnderTesting.ProjectileLength
-                        > shellUnderTesting.CalculateMaxProjectileLengthForInaccuracy(MaxBarrelLengthInM, MaxInaccuracy))
+                shellUnderTesting.GetModuleCounts();
+                shellUnderTesting.CalculateMaxDraw();
+                shellUnderTesting.CalculateVelocityModifier();
+                float minShellRecoilForVelocityAndRange = shellUnderTesting.CalculateMinRecoilForVelocityAndRange(MinVelocityInput, MinEffectiveRangeInput);
+                float minCasingRecoil = minShellRecoilForVelocityAndRange - MathF.Min(MaxDrawInput, shellUnderTesting.MaxDrawShell);
+
+                float drawPerCasing = shellUnderTesting.DrawPerProjectileModule * shellUnderTesting.RGCasingDrawMultiplier;
+                float gpRecoilPerCasing = shellUnderTesting.GPRecoilPerCasing;
+
+                float maxCasingCountForModule = 20f - shellUnderTesting.ModuleCountTotal;
+                float maxFeltRecoil = GunUsesRecoilAbsorbers ?
+                    MaxRecoilInput
+                    : MathF.Min(MaxRecoilInput, shellUnderTesting.CalculateMaxFeltRecoilForInaccuracy(MaxBarrelLengthInM, MaxInaccuracy));
+
+                float feltRecoilPerCasing = shellUnderTesting.DrawPerProjectileModule
+                    * shellUnderTesting.RGCasingDrawMultiplier
+                    * shellUnderTesting.RGCasingFeltRecoilMultiplier;
+                float maxRGCasings = MathF.Min(MaxRGInput, maxFeltRecoil / feltRecoilPerCasing);
+
+                float minLengthForBracket = MathF.Max(modConfig.Bracket.MinLengthMMExclusive, MinShellLength);
+                float maxLengthForBracket = MathF.Min(modConfig.Bracket.MaxLengthMMInclusive, MaxShellLength);
+                float minCasingCountForBracket = MathF.Max(0f, (minLengthForBracket - shellUnderTesting.ProjectileLength) / Gauge + 0.01f);
+                float maxCasingCountForBracket = MathF.Min(maxCasingCountForModule, (maxLengthForBracket - shellUnderTesting.ProjectileLength) / Gauge);
+
+                float gridSpacing = 1f;
+                float fineSearchSpacing = 0.01f;
+                int maxRGIncrementCount = (int)MathF.Floor(MathF.Min(maxRGCasings, maxCasingCountForBracket) / gridSpacing);
+
+                // Capture loop locals for lambdas so they bind cleanly
+                Module headForScoring = shellUnderTesting.HeadModule;
+                float[] varCountsForScoring = modConfig.VariableModCounts;
+
+                (int, int) coarseGPRange(int rgInc) => CalculateGPIncrementBounds(
+                    rgInc, gridSpacing,
+                    minCasingCountForBracket, maxCasingCountForBracket,
+                    minCasingRecoil, maxFeltRecoil,
+                    drawPerCasing, feltRecoilPerCasing, gpRecoilPerCasing,
+                    MaxGP);
+
+                (float, float) fineGPBounds(float rgCount)
                 {
-                    lengthWithinBounds = false;
+                    float minGPForLength = minCasingCountForBracket - rgCount;
+                    float minGPForRecoil = (minCasingRecoil - rgCount * drawPerCasing) / gpRecoilPerCasing;
+                    float maxGPForLength = maxCasingCountForBracket - rgCount;
+                    float maxGPForRecoil = (maxFeltRecoil - rgCount * feltRecoilPerCasing) / gpRecoilPerCasing;
+                    float minGP = MathF.Max(0f, MathF.Max(minGPForLength, minGPForRecoil));
+                    float maxGP = MathF.Min(MaxGP, MathF.Min(maxGPForLength, maxGPForRecoil));
+                    return (minGP, maxGP);
                 }
-                if (shellUnderTesting.TotalLength <= MinShellLength || shellUnderTesting.TotalLength > MaxShellLength)
+
+                float scoreFunc(float gp, float rg) =>
+                    ShellTest2(headForScoring, varCountsForScoring, gp, rg).score;
+
+                HashSet<Neighborhood> peaks = FindCoarsePeaks(maxRGIncrementCount, gridSpacing, coarseGPRange, scoreFunc);
+
+                foreach (Neighborhood hood in peaks)
                 {
-                    lengthWithinBounds = false;
-                }
+                    (float gp, float rg, float bestScore) = RefineToFinePeak(hood, fineSearchSpacing, fineGPBounds, scoreFunc);
 
-                if (lengthWithinBounds)
-                {
-                    shellUnderTesting.GetModuleCounts();
-                    TargetArmorScheme.CalculateLayerAC();
+                    float topShellScore = TestType == TestType.DpsPerCost
+                        ? TopShells[modConfig.Bracket].DpsPerCostDict[DamageType]
+                        : TopShells[modConfig.Bracket].DpsPerVolumeDict[DamageType];
 
-                    // Determine which brackets to test
-                    List<LoaderBracket> bracketsToTest = [];
-                    float minLength = MathF.Max(MinShellLength, shellUnderTesting.ProjectileLength);
-                    float maxLength = MathF.Min(MaxShellLength, shellUnderTesting.ProjectileLength);
-
-                    foreach (LoaderBracket bracket in LoaderBrackets)
+                    if (bestScore > topShellScore)
                     {
-                        if (bracket.Overlaps(minLength, maxLength))
-                        {
-                            bracketsToTest.Add(bracket);
-                        }
-                    }
-
-                    shellUnderTesting.CalculateMaxDraw();
-                    shellUnderTesting.CalculateVelocityModifier();
-                    float minShellRecoilForVelocityAndRange = shellUnderTesting.CalculateMinRecoilForVelocityAndRange(MinVelocityInput, MinEffectiveRangeInput);
-                    float minCasingRecoil = minShellRecoilForVelocityAndRange - MathF.Min(MaxDrawInput, shellUnderTesting.MaxDrawShell);
-
-                    float drawPerCasing = shellUnderTesting.DrawPerProjectileModule * shellUnderTesting.RGCasingDrawMultiplier;
-
-                    float maxCasingCountForModule = 20f - shellUnderTesting.ModuleCountTotal;
-                    float maxFeltRecoil = GunUsesRecoilAbsorbers ?
-                        MaxRecoilInput
-                        : MathF.Min(MaxRecoilInput, shellUnderTesting.CalculateMaxRecoilForInaccuracy(MaxBarrelLengthInM, MaxInaccuracy));
-
-                    float feltRecoilPerCasing = shellUnderTesting.DrawPerProjectileModule
-                        * shellUnderTesting.RGCasingDrawMultiplier
-                        * shellUnderTesting.RGCasingFeltRecoilMultiplier;
-                    float maxRGCasings = MathF.Min(MaxRGInput, maxFeltRecoil / feltRecoilPerCasing);
-
-                    foreach (LoaderBracket bracket in bracketsToTest)
-                    {
-                        float minLengthForBracket = MathF.Max(bracket.MinLengthMMExclusive, MinShellLength);
-                        float maxLengthForBracket = MathF.Min(bracket.MaxLengthMMInclusive, MaxShellLength);
-                        float minCasingCountForBracket = MathF.Max(0, (minLengthForBracket - shellUnderTesting.ProjectileLength) / Gauge + 0.01f);
-                        float maxCasingCountForBracket = MathF.Min(maxCasingCountForModule, (maxLengthForBracket - shellUnderTesting.ProjectileLength) / Gauge);
-
-                        // Treat all possible combinations of GP and RG casings as 2D heatmap to be searched for peaks
-                        float gridSize = 1f;
-                        HashSet<Neighborhood> neighborhoodSet = [];
-
-                        int maxRGIncrementCount = (int)MathF.Floor(MathF.Min(maxRGCasings, maxCasingCountForBracket) / gridSize);
-                        for (int rgIncrementCount = 0; rgIncrementCount <= maxRGIncrementCount; rgIncrementCount++)
-                        {
-                            float rgCount = gridSize * rgIncrementCount;
-
-                            float minGPForLength = minCasingCountForBracket -  rgCount;
-                            float minGPForRecoil = minCasingRecoil - rgCount * drawPerCasing;
-                            float maxGPForLength = maxCasingCountForBracket - rgCount;
-                            float maxGPForRecoil = maxFeltRecoil - rgCount * feltRecoilPerCasing;
-
-                            float minGP = MathF.Max(0, MathF.Max(minGPForLength, minGPForRecoil));
-                            float maxGP = MathF.Min(MaxGP, MathF.Min(maxGPForLength, maxGPForRecoil));
-                            int minGPIncrementCount = (int)MathF.Ceiling(minGP /  gridSize);
-                            int maxGPIncrementCount = (int)MathF.Floor(maxGP / gridSize);
-                            for (int gpIncrementCount = minGPIncrementCount; gpIncrementCount <= maxGPIncrementCount; gpIncrementCount++)
-                            {
-                                HashSet<(float gpCount, float rgCount)> neighborSet = [];
-                                // Generate up to four neighbors for each point
-                                float gpCount = gridSize * gpIncrementCount;
-
-                                // Same row, left and right
-                                float leftGP = Math.Max(gpIncrementCount - 1, minGPIncrementCount) * gridSize;
-                                float rightGP = Math.Min(gpIncrementCount + 1, maxGPIncrementCount) * gridSize;
-                                // Same column, up and down
-                                float bottomRG = Math.Max(rgIncrementCount - 1, 0) * gridSize;
-                                float topRG = Math.Min(rgIncrementCount + 1, maxRGIncrementCount) * gridSize;
-
-                                neighborSet.Add((gpCount, topRG));
-                                neighborSet.Add((gpCount, bottomRG));
-                                neighborSet.Add((leftGP, rgCount));
-                                neighborSet.Add((rightGP, rgCount));
-
-                                // Check for peakhood
-                                float centerScore = ShellTest2(shellUnderTesting.HeadModule, modConfig.VariableModCounts, gpCount, rgCount, bracket.LoaderType);
-                                bool centerIsPeak = true;
-                                foreach((float gp, float rg) in  neighborSet)
-                                {
-                                    float neighborScore = ShellTest2(shellUnderTesting.HeadModule, modConfig.VariableModCounts, gp, rg, bracket.LoaderType);
-                                    if (neighborScore > centerScore)
-                                    {
-                                        centerIsPeak = false;
-                                        break;
-                                    }
-                                }
-
-                                if (centerIsPeak)
-                                {
-                                    Neighborhood hood = new() { centerGP = gpCount, centerRG = rgCount, bottomRG = bottomRG, topRG = topRG };
-                                    neighborhoodSet.Add(hood);
-                                }
-                            }
-                        }
-                        // Fine search to find peak centers
-                        float spacing = 0.01f;
-                        foreach (Neighborhood hood in neighborhoodSet)
-                        {
-                            int bottomRGIncrement = (int)Math.Ceiling(hood.bottomRG);
-                            int topRGIncrement = (int)Math.Floor(hood.topRG);
-
-                            for (int rgIncrement =  bottomRGIncrement; rgIncrement <= topRGIncrement; rgIncrement++)
-                            {
-                                float rgCount = spacing * rgIncrement;
-
-                                float minGPForLength = minCasingCountForBracket - rgCount;
-                                float minGPForRecoil = minCasingRecoil - rgCount * drawPerCasing;
-                                float maxGPForLength = maxCasingCountForBracket - rgCount;
-                                float maxGPForRecoil = maxFeltRecoil - rgCount * feltRecoilPerCasing;
-
-                                float minGP = MathF.Max(0, MathF.Max(minGPForLength, minGPForRecoil));
-                                float maxGP = MathF.Min(MaxGP, MathF.Min(maxGPForLength, maxGPForRecoil));
-                                int minGPIncrementCount = (int)MathF.Ceiling(minGP / spacing);
-                                int maxGPIncrementCount = (int)MathF.Floor(maxGP / spacing);
-
-                                for (int gpIncrement =  minGPIncrementCount; gpIncrement <= maxGPIncrementCount; gpIncrement++)
-                                {
-                                    float gpCount = spacing * gpIncrement;
-
-                                    float score = ShellTest2(shellUnderTesting.HeadModule, modConfig.VariableModCounts, gpCount, rgCount, bracket.LoaderType);
-                                    float topShellScore = TestType == TestType.DpsPerCost ? TopShells[bracket].DpsPerCostDict[DamageType]
-                                        : TopShells[bracket].DpsPerVolumeDict[DamageType];
-                                    if (score > topShellScore)
-                                    {
-                                        shellUnderTesting.GPCasingCount = gpCount;
-                                        shellUnderTesting.RGCasingCount = rgCount;
-                                        TopShells[bracket] = shellUnderTesting;
-                                    }
-                                }
-                            }
-                        }
+                        Shell winner = ShellTest2(headForScoring, varCountsForScoring, gp, rg).shell;
+                        TopShells[modConfig.Bracket] = winner;
                     }
                 }
             }
-            return shellList;
         }
 
         /// <summary>
-        /// Iterates over possible configurations and stores the best according to test parameters
+        /// Iterates over possible configurations and stores best according to test parameters
         /// </summary>
         public void ShellTest()
         {
             // Set up target armor scheme for testing
-            TargetArmorScheme.CalculateLayerAC();
-
             foreach (ModuleConfig modConfig in GenerateModConfigs())
             {
                 Shell shellUnderTesting = new(
@@ -1298,7 +1259,6 @@ namespace ApsCalcUI
                 {
                     lengthWithinBounds = false;
                 }
-
 
                 if (lengthWithinBounds)
                 {

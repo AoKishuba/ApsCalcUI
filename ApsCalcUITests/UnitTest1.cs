@@ -334,6 +334,111 @@ namespace ApsCalcUITests
         }
 
         [Test]
+        public void FindCoarsePeaks_SingleGlobalPeak_DetectsIt()
+        {
+            // 5x5 grid with a single peak at (2, 2)
+            float[,] map = new float[5, 5];
+            for (int g = 0; g < 5; g++)
+                for (int r = 0; r < 5; r++)
+                    map[g, r] = 10 -(g - 2) * (g - 2) - (r - 2) * (r - 2);
+
+            float score(float gp, float rg) => map[(int)gp, (int)rg];
+            (int, int) gpRange(int _) => (0, 4);
+
+            HashSet<Neighborhood> peaks = ShellCalc.FindCoarsePeaks(4, 1f, (Func<int, (int, int)>)gpRange, score);
+
+            Assert.That(peaks, Has.Count.EqualTo(1));
+            Assert.That(peaks.Single().CenterGP, Is.EqualTo(2f));
+            Assert.That(peaks.Single().CenterRG, Is.EqualTo(2f));
+        }
+
+        [Test]
+        public void FindCoarsePeaks_MultipleLocalPeaks_DetectsAll()
+        {
+            // Two-peak landscape: peaks at (1,1) and (3,3), saddle in between
+            float[,] map = {
+        { 0,  1,  0,  0,  0 },
+        { 1,  3,  1,  0,  0 },
+        { 0,  1,  0,  1,  0 },
+        { 0,  0,  1,  4,  1 },
+        { 0,  0,  0,  1,  0 },
+    };
+
+            float score(float gp, float rg) => map[(int)gp, (int)rg];
+            HashSet<Neighborhood> peaks = ShellCalc.FindCoarsePeaks(4, 1f,
+                _ => (0, 4),
+                score);
+
+            Assert.That(peaks.Select(p => (p.CenterGP, p.CenterRG)),
+                        Is.EquivalentTo(new[] { (1f, 1f), (3f, 3f) }));
+        }
+
+        [Test]
+        public void RefineToFinePeak_FindsKnownMaximum()
+        {
+            // Synthetic continuous map: peak at (3.27, 4.18)
+            static float score(float gp, float rg)
+                => -MathF.Pow(gp - 3.27f, 2) - MathF.Pow(rg - 4.18f, 2);
+
+            Neighborhood hood = new(CenterGP: 3, CenterRG: 4, BottomRG: 3, TopRG: 5);
+
+            var (gp, rg, _) = ShellCalc.RefineToFinePeak(hood, 0.01f,
+                _ => (2f, 4f),
+                score);
+
+            Assert.That(gp, Is.EqualTo(3.27f).Within(0.01f));
+            Assert.That(rg, Is.EqualTo(4.18f).Within(0.01f));
+        }
+
+        [Test]
+        public void FindCoarsePeaks_GlobalMaximumOnBoundary_DetectsCornerPeak()
+        {
+            // Peak at (0, 0), lower-left corner of a 5x5 search space.
+            // Scores decline monotonically with both coordinates.
+            float[,] map = {
+                { 10, 5,  2,  1,  0 },
+                { 5,  3,  1,  0,  0 },
+                { 2,  1,  0,  0,  0 },
+                { 1,  0,  0,  0,  0 },
+                { 0,  0,  0,  0,  0 },
+            };
+
+            float score(float gp, float rg) => map[(int)gp, (int)rg];
+
+            HashSet<Neighborhood> peaks = ShellCalc.FindCoarsePeaks(
+                maxRGIncrementCount: 4,
+                gridSpacing: 1f,
+                gpRangeAtRG: _ => (0, 4),
+                score: score);
+
+            Assert.That(peaks.Select(p => (p.CenterGP, p.CenterRG)),
+                        Is.EquivalentTo(new[] { (0f, 0f) }));
+        }
+
+        [Test]
+        public void RefineToFinePeak_GlobalMaxOutsideRegion_FindsNearestValidGridPoint()
+        {
+            // Continuous score function with a unimodal peak at (3.5, 4.7).
+            // Search region (gp in [3.0, 3.6], rg in [4.0, 4.5]) excludes peak.
+            // Nearest valid point is (3.5, 4.5).
+            static float score(float gp, float rg) =>
+                100f - MathF.Pow(gp - 3.5f, 2) - MathF.Pow(rg - 4.7f, 2);
+
+            static (float, float) gpBoundsAtRG(float _) => (3.0f, 3.6f);
+
+            Neighborhood hood = new(
+                CenterGP: 3.5f,
+                CenterRG: 4.5f,
+                BottomRG: 4.0f,
+                TopRG: 4.5f);
+
+            var (gp, rg, _) = ShellCalc.RefineToFinePeak(hood, 0.01f, (Func<float, (float, float)>)gpBoundsAtRG, score);
+
+            Assert.That(gp, Is.EqualTo(3.5f).Within(0.005f));
+            Assert.That(rg, Is.EqualTo(4.5f).Within(0.005f));
+        }
+
+        [Test]
         public void ReloadTimeTest()
         {
             float[] testModuleCounts = [1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0];

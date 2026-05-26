@@ -12,7 +12,7 @@ namespace ApsCalcUI
         public List<int> HeadIndices;
         public Module BaseModule;
         public float[] FixedModulecounts;
-        public float MinModulecount;
+        public float MinModuleCount;
         public int[] VariableModuleIndices;
         public int RegularClipsPerLoader;
         public int RegularInputsPerLoader;
@@ -27,7 +27,7 @@ namespace ApsCalcUI
         public float MaxDraw;
         public float MaxRecoil;
         public float MinVelocity;
-        public float MinEffectiverange;
+        public float MinEffectiveRange;
         public float ImpactAngle;
         public float SabotAngleMultiplier;
         public float NonSabotAngleMultiplier;
