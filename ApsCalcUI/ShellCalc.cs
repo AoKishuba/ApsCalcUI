@@ -324,8 +324,8 @@ namespace ApsCalcUI
 
 
         // Store top-DPS shells by loader length
-        LoaderBracket[] LoaderBrackets { get; }
-        Dictionary<LoaderBracket, Shell> TopShells { get; }
+        public LoaderBracket[] LoaderBrackets { get; }
+        public Dictionary<LoaderBracket, Shell> TopShells { get; }
         public Shell TopBelt { get; set; } = new(default, default, default, default, default, default, default, default,
             default, default, default, default, default, default, default, default);
         public Shell Top1000 { get; set; } = new(default, default, default, default, default, default, default, default,
@@ -625,9 +625,104 @@ namespace ApsCalcUI
                 (bracket.LoaderType == LoaderType.Regular && usesDefuse) ? 1f : 0f;
         }
 
+        /// <summary>
+        /// Computes the maximum total recoil achievable for any feasible (gp, rg, pd) allocation.
+        /// Solves a 3-variable LP exactly by enumerating all C(9, 3) = 84 vertex candidates.
+        /// </summary>
+        internal static float MaxAchievableTotalRecoil(
+            float gpRecoilPerCasing,
+            float drawPerMod,
+            float casingDrawMultiplier,
+            float casingFeltRecoilMultiplier,
+            float maxGPCap,
+            float maxRGCap,
+            float maxCasings,
+            float maxDrawInput,
+            float maxDrawProjectile,
+            float maxFeltRecoil)
+        {
+            float rgDrawCoef = drawPerMod * casingDrawMultiplier;
+            float rgFeltCoef = rgDrawCoef * casingFeltRecoilMultiplier;
+
+            // 9 constraints in form a*gp + b*rg + c*pd <= d.
+            // Columns: 0=a, 1=b, 2=c, 3=d.
+            float[,] cons =
+                {
+                {  1f,                1f,         0f, maxCasings        }, // C1
+                {  0f,                1f,         0f, maxRGCap           }, // C2
+                {  1f,                0f,         0f, maxGPCap           }, // C3
+                {  0f,                rgDrawCoef, 1f, maxDrawInput       }, // C4
+                {  0f,                0f,         1f, maxDrawProjectile  }, // C5
+                {  gpRecoilPerCasing, rgFeltCoef, 1f, maxFeltRecoil      }, // C6
+                { -1f,                0f,         0f, 0f                 }, // C7: gp >= 0
+                {  0f,               -1f,         0f, 0f                 }, // C8: rg >= 0
+                {  0f,                0f,        -1f, 0f                 }, // C9: pd >= 0
+            };
+
+            float best = 0f;  // origin (0,0,0) is always feasible with objective 0
+            const float singularThreshold = 1e-9f;
+            const float feasEps = 1e-4f;
+
+            for (int i = 0; i < 9; i++)
+                for (int j = i + 1; j < 9; j++)
+                    for (int k = j + 1; k < 9; k++)
+                    {
+                        float a0 = cons[i, 0], b0 = cons[i, 1], c0 = cons[i, 2], d0 = cons[i, 3];
+                        float a1 = cons[j, 0], b1 = cons[j, 1], c1 = cons[j, 2], d1 = cons[j, 3];
+                        float a2 = cons[k, 0], b2 = cons[k, 1], c2 = cons[k, 2], d2 = cons[k, 3];
+
+                        float det =
+                            a0 * (b1 * c2 - c1 * b2) -
+                            b0 * (a1 * c2 - c1 * a2) +
+                            c0 * (a1 * b2 - b1 * a2);
+
+                        if (MathF.Abs(det) < singularThreshold) continue;
+
+                        float gp = (
+                            d0 * (b1 * c2 - c1 * b2) -
+                            b0 * (d1 * c2 - c1 * d2) +
+                            c0 * (d1 * b2 - b1 * d2)
+                        ) / det;
+
+                        float rg = (
+                            a0 * (d1 * c2 - c1 * d2) -
+                            d0 * (a1 * c2 - c1 * a2) +
+                            c0 * (a1 * d2 - d1 * a2)
+                        ) / det;
+
+                        float pd = (
+                            a0 * (b1 * d2 - d1 * b2) -
+                            b0 * (a1 * d2 - d1 * a2) +
+                            d0 * (a1 * b2 - b1 * a2)
+                        ) / det;
+
+                        // Feasibility check against all 9 constraints
+                        bool feasible = true;
+                        for (int c = 0; c < 9; c++)
+                        {
+                            float lhs = cons[c, 0] * gp + cons[c, 1] * rg + cons[c, 2] * pd;
+                            float tolerance = feasEps * MathF.Max(1f, MathF.Abs(cons[c, 3]));
+                            if (lhs > cons[c, 3] + tolerance)
+                            {
+                                feasible = false;
+                                break;
+                            }
+                        }
+
+                        if (feasible)
+                        {
+                            float obj = gpRecoilPerCasing * gp + rgDrawCoef * rg + pd;
+                            if (obj > best) best = obj;
+                        }
+                    }
+
+            return best;
+        }
+
         bool PassesVelocityAndRecoilChecks(Shell shellUnderTesting, float maxCasingLength)
         {
             // Calculate min recoil
+            shellUnderTesting.CalculateLengths();
             shellUnderTesting.GetModuleCounts();
             shellUnderTesting.CalculateMaxDraw();
             shellUnderTesting.CalculateVelocityModifier();
@@ -637,40 +732,26 @@ namespace ApsCalcUI
             float maxFeltRecoil = GunUsesRecoilAbsorbers ?
                 MaxRecoilInput                
                 : MathF.Min(MaxRecoilInput, shellUnderTesting.CalculateMaxFeltRecoilForInaccuracy(MaxBarrelLengthInM, MaxInaccuracy));
-            
-            // Coefficients, all derived from shell instance
-            float drawPerMod = shellUnderTesting.DrawPerProjectileModule;
-            float casingDrawMultiplier = shellUnderTesting.RGCasingDrawMultiplier;
-            float casingFeltRecoilMultiplier = shellUnderTesting.RGCasingFeltRecoilMultiplier;
-            float gpRecoilPerCasing = shellUnderTesting.GPRecoilPerCasing;
 
-            float slotBudget = 20f - shellUnderTesting.ModuleCountTotal + shellUnderTesting.GPCasingCount + shellUnderTesting.RGCasingCount;
+            float slotBudget = 20f - shellUnderTesting.ModuleCountTotal
+                             + shellUnderTesting.GPCasingCount
+                             + shellUnderTesting.RGCasingCount;
             float lengthBudget = maxCasingLength / Gauge;
             float maxCasings = MathF.Min(slotBudget, lengthBudget);
 
-            float maxRGCasings = MaxDrawInput / (drawPerMod * casingDrawMultiplier);
-            maxRGCasings = MathF.Min(MathF.Min(maxCasings, MaxRGInput), maxRGCasings);
+            float maxAchievable = MaxAchievableTotalRecoil(
+                gpRecoilPerCasing: shellUnderTesting.GPRecoilPerCasing,
+                drawPerMod: shellUnderTesting.DrawPerProjectileModule,
+                casingDrawMultiplier: shellUnderTesting.RGCasingDrawMultiplier,
+                casingFeltRecoilMultiplier: shellUnderTesting.RGCasingFeltRecoilMultiplier,
+                maxGPCap: MaxGP,
+                maxRGCap: MaxRGInput,
+                maxCasings: maxCasings,
+                maxDrawInput: MaxDrawInput,
+                maxDrawProjectile: shellUnderTesting.MaxDrawProjectile,
+                maxFeltRecoil: maxFeltRecoil);
 
-            float drawFromMaxCasings = drawPerMod * casingDrawMultiplier * maxRGCasings;             // ≤ MaxDrawInput by construction
-
-            // Phase 1: efficient draw (rate κ felt per 1 total), capped by RG capacity and felt budget
-            float maxCasingDrawLimit = MathF.Min(drawFromMaxCasings, maxFeltRecoil / casingFeltRecoilMultiplier);
-            float feltUsed = casingFeltRecoilMultiplier * maxCasingDrawLimit;
-
-            // Phase 2: overflow draw (rate 1:1), capped by projectile-portion capacity, remaining input cap, remaining felt
-            float overflowCapacity = MathF.Max(0f, MathF.Min(shellUnderTesting.MaxDrawProjectile, MaxDrawInput - maxCasingDrawLimit));
-            float overflowDraw = MathF.Min(overflowCapacity, maxFeltRecoil - feltUsed);
-            feltUsed += overflowDraw;
-
-            float draw = maxCasingDrawLimit + overflowDraw;
-
-            // Phase 3: GP casings on any remaining felt + slot budget (rate 1:1, but unlike overflow draw,
-            //          uses module slots; useful when draw is at MaxDrawInput cap and felt budget remains)
-            float gpSlotsRemaining = MathF.Max(0f, MathF.Min(MaxGP, maxCasings - maxRGCasings));
-            float gpCount = MathF.Max(0f, MathF.Min(gpSlotsRemaining, (maxFeltRecoil - feltUsed) / gpRecoilPerCasing));
-
-            float maxAchievableTotal = gpRecoilPerCasing * gpCount + draw;
-            return maxAchievableTotal >= minTotalRecoil;
+            return maxAchievable >= minTotalRecoil;
         }
 
         /// <summary>
@@ -882,22 +963,26 @@ namespace ApsCalcUI
             }
         }
 
-
-
         /// <summary>
         /// Find DPS/Cost or DPS/Volume of given shell
         /// </summary>
         /// <param name="gpCount">GP casing count</param>
         /// <param name="rgCount">RG casing count</param>
         /// <returns>DPS per Cost or DPS per Volume, depending on test type</returns>
-        (float score, Shell shell) ShellTest2(Module head, float[] variableModCounts,  float gpCount, float rgCount)
+        (float score, Shell shell) ShellTest2(
+            Module head,
+            float[] variableModCounts, 
+            float gpCount,
+            float rgCount,
+            LoaderBracket bracket)
         {
+            bool isBelt = bracket.LoaderType == LoaderType.Belt;
             float score = 0;
             Shell shellUnderTesting = new(
                 BarrelCount,
                 Gauge,
                 GaugeMultiplier,
-                false,
+                isBelt,
                 head,
                 BaseModule,
                 RegularClipsPerLoader,
@@ -912,6 +997,9 @@ namespace ApsCalcUI
                 FiringPieceIsDif
                 );
             FixedModuleCounts.CopyTo(shellUnderTesting.BodyModuleCounts, 0);
+            bool usesDefuse = shellUnderTesting.BodyModuleCounts[Module.DefuseIndex] > 0f;
+
+            ResetToFixedCounts(shellUnderTesting, bracket, usesDefuse);
 
             // Add variable modules
             for (int i = 0; i < variableModCounts.Length; i++)
@@ -1021,11 +1109,11 @@ namespace ApsCalcUI
             float minGP = MathF.Max(0f, MathF.Max(minGPForLength, minGPForRecoil));
             float maxGP = MathF.Min(maxGPCap, MathF.Min(maxGPForLength, maxGPForRecoil));
 
-            return ((int)MathF.Ceiling(minGP / gridSpacing), (int)MathF.Floor(maxGP / gridSpacing));
+            return ((int)MathF.Floor(minGP / gridSpacing), (int)MathF.Ceiling(maxGP / gridSpacing));
         }
 
         /// <summary>
-        /// Coarse-grid search over (gp, rg) at given gridSize. Returns set of grid
+        /// Coarse-grid search over (gp, rg) at given grid spacing. Returns set of grid
         /// points that are at least as high as their four cardinal neighbors. Score function
         /// is parameterized so tests can supply a synthetic scoring map.
         /// </summary>
@@ -1044,18 +1132,38 @@ namespace ApsCalcUI
                 {
                     float gp = gpInc * gridSpacing;
                     float rg = rgInc * gridSpacing;
-                    float leftGP = Math.Max(gpInc - 1, minGPInc) * gridSpacing;
-                    float rightGP = Math.Min(gpInc + 1, maxGPInc) * gridSpacing;
-                    float bottomRG = Math.Max(rgInc - 1, 0) * gridSpacing;
-                    float topRG = Math.Min(rgInc + 1, maxRGIncrementCount) * gridSpacing;
-
                     float centerScore = score(gp, rg);
-                    if (score(gp, topRG) <= centerScore
-                     && score(gp, bottomRG) <= centerScore
-                     && score(leftGP, rg) <= centerScore
-                     && score(rightGP, rg) <= centerScore
-                     && centerScore > 0)
+
+                    bool hasLeft = gpInc > minGPInc;
+                    bool hasRight = gpInc < maxGPInc;
+
+                    // Top/bottom neighbours exist only if current gpInc remains
+                    // inside per-row GP feasibility range at neighbour's rgInc.
+                    bool hasBottom = false;
+                    if (rgInc > 0)
                     {
+                        (int loBelow, int hiBelow) = gpRangeAtRG(rgInc - 1);
+                        hasBottom = gpInc >= loBelow && gpInc <= hiBelow;
+                    }
+
+                    bool hasTop = false;
+                    if (rgInc < maxRGIncrementCount)
+                    {
+                        (int loAbove, int hiAbove) = gpRangeAtRG(rgInc + 1);
+                        hasTop = gpInc >= loAbove && gpInc <= hiAbove;
+                    }
+
+                    bool isPeak =
+                        centerScore > 0
+                     && (!hasLeft || score((gpInc - 1) * gridSpacing, rg) <= centerScore)
+                     && (!hasRight || score((gpInc + 1) * gridSpacing, rg) <= centerScore)
+                     && (!hasBottom || score(gp, (rgInc - 1) * gridSpacing) <= centerScore)
+                     && (!hasTop || score(gp, (rgInc + 1) * gridSpacing) <= centerScore);
+
+                    if (isPeak)
+                    {
+                        float bottomRG = Math.Max(rgInc - 1, 0) * gridSpacing;
+                        float topRG = Math.Min(rgInc + 1, maxRGIncrementCount) * gridSpacing;
                         peaks.Add(new Neighborhood(gp, rg, bottomRG, topRG));
                     }
                 }
@@ -1109,11 +1217,12 @@ namespace ApsCalcUI
         {
             foreach (ModuleConfig modConfig in GenerateProjectiles())
             {
+                bool isBelt = modConfig.Bracket.LoaderType == LoaderType.Belt;
                 Shell shellUnderTesting = new(
                     BarrelCount,
                     Gauge,
                     GaugeMultiplier,
-                    false,
+                    isBelt,
                     Module.AllModules[modConfig.HeadIndex],
                     BaseModule,
                     RegularClipsPerLoader,
@@ -1162,8 +1271,8 @@ namespace ApsCalcUI
                 float minCasingCountForBracket = MathF.Max(0f, (minLengthForBracket - shellUnderTesting.ProjectileLength) / Gauge + 0.01f);
                 float maxCasingCountForBracket = MathF.Min(maxCasingCountForModule, (maxLengthForBracket - shellUnderTesting.ProjectileLength) / Gauge);
 
-                float gridSpacing = 1f;
-                float fineSearchSpacing = 0.01f;
+                float gridSpacing = MathF.Max(1f, CasingIncrement);
+                float fineSearchSpacing = CasingIncrement;
                 int maxRGIncrementCount = (int)MathF.Floor(MathF.Min(maxRGCasings, maxCasingCountForBracket) / gridSpacing);
 
                 // Capture loop locals for lambdas so they bind cleanly
@@ -1189,7 +1298,7 @@ namespace ApsCalcUI
                 }
 
                 float scoreFunc(float gp, float rg) =>
-                    ShellTest2(headForScoring, varCountsForScoring, gp, rg).score;
+                    ShellTest2(headForScoring, varCountsForScoring, gp, rg, modConfig.Bracket).score;
 
                 HashSet<Neighborhood> peaks = FindCoarsePeaks(maxRGIncrementCount, gridSpacing, coarseGPRange, scoreFunc);
 
@@ -1203,7 +1312,7 @@ namespace ApsCalcUI
 
                     if (bestScore > topShellScore)
                     {
-                        Shell winner = ShellTest2(headForScoring, varCountsForScoring, gp, rg).shell;
+                        Shell winner = ShellTest2(headForScoring, varCountsForScoring, gp, rg, modConfig.Bracket).shell;
                         TopShells[modConfig.Bracket] = winner;
                     }
                 }
@@ -1646,7 +1755,7 @@ namespace ApsCalcUI
         /// <summary>
         /// Write top shell information
         /// </summary>
-        public void WriteTopShells(float minGauge, float maxGauge)
+        public void WriteTopShells(float minGauge, float maxGauge, TimeSpan ts)
         {
             bool showGP = MaxGPInput > 0;
 
@@ -1739,7 +1848,7 @@ namespace ApsCalcUI
                 }
             }
 
-            WriteTopShellsToFile(minGauge, maxGauge, showGP, showRG, showDraw, dtToShow, modsToShow);
+            WriteTopShellsToFile(minGauge, maxGauge, showGP, showRG, showDraw, dtToShow, modsToShow, ts);
         }
 
 
@@ -1753,7 +1862,8 @@ namespace ApsCalcUI
             bool showRG,
             bool showDraw,
             Dictionary<DamageType, bool> dtToShow,
-            List<int> modsToShow)
+            List<int> modsToShow,
+            TimeSpan ts)
 
         {
             // Create filename from current time
@@ -1941,6 +2051,7 @@ namespace ApsCalcUI
             {
                 writer.WriteLine("Rounding numbers to match values shown ingame");
             }
+            writer.WriteLine($"Test completed in {ts}");
             writer.WriteLine();
 
 

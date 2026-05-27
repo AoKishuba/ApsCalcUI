@@ -439,6 +439,167 @@ namespace ApsCalcUITests
         }
 
         [Test]
+        public void FullSearch_GlobalMaxOutsideFeasibleRegion_FindsNearestInBoundsPeak()
+        {
+            // Feasibility region:
+            //   x ∈ [0, 5]         — separate x limit
+            //   y ∈ [0, 8]         — separate y limit
+            //   x + y ∈ [2, 10]    — min and max combined limits (min/max recoil analogue)
+            //
+            // Score landscape (four narrow bumps):
+            //   (1.00, 1.00) → +5   inside,  far    from global max
+            //   (2.00, 5.00) → +6   inside,  middle distance from global max
+            //   (4.27, 4.81) → +8   inside,  closest to global max — should win
+            //   (8.00, 8.00) → +10  outside (x > 5) — global max, unreachable
+
+            float gridSize = 1f;
+            float spacing = 0.01f;
+            int maxRGIncrementCount = 8;
+
+            (int, int) gpIncrementRange(int rgInc)
+            {
+                float y = rgInc * gridSize;
+                float minX = MathF.Max(0f, 2f - y);          // x + y ≥ 2
+                float maxX = MathF.Min(5f, 10f - y);         // x ≤ 5 and x + y ≤ 10
+                return ((int)MathF.Ceiling(minX / gridSize),
+                        (int)MathF.Floor(maxX / gridSize));
+            }
+
+            (float, float) gpBounds(float y)
+            {
+                float minX = MathF.Max(0f, 2f - y);
+                float maxX = MathF.Min(5f, 10f - y);
+                return (minX, maxX);
+            }
+
+            // f(x, y) = value − 4·((x − cx)² + (y − cy)²)
+            // The factor of 4 makes each bump steep enough that adjacent bumps don't
+            // interfere — every local maximum of max(f_A, f_B, f_C, f_D) is at a bump
+            // centre, and no ridges between bumps register as spurious peaks.
+            static float Bump(float x, float y, float cx, float cy, float value)
+                => value - 4f * ((x - cx) * (x - cx) + (y - cy) * (y - cy));
+
+            float Score(float x, float y)
+            {
+                float fA = Bump(x, y, 1.00f, 1.00f, 5f);
+                float fB = Bump(x, y, 2.00f, 5.00f, 6f);
+                float fC = Bump(x, y, 4.27f, 4.81f, 8f);
+                float fD = Bump(x, y, 8.00f, 8.00f, 10f);
+                return 100f + MathF.Max(MathF.Max(fA, fB), MathF.Max(fC, fD));
+            }
+
+            // Coarse pass: expect at least the three in-bounds bump centres to register
+            HashSet<Neighborhood> peaks = ShellCalc.FindCoarsePeaks(
+                maxRGIncrementCount, gridSize, gpIncrementRange, Score);
+
+            Assert.That(peaks.Count, Is.GreaterThanOrEqualTo(2),
+                "landscape has three in-bounds local maxima; coarse search should detect multiple peaks");
+
+            // Fine pass on each coarse peak; track the global winner (mirrors BigTest's loop)
+            float bestScore = float.NegativeInfinity;
+            (float x, float y) bestLocation = (0f, 0f);
+            foreach (Neighborhood hood in peaks)
+            {
+                var (x, y, s) = ShellCalc.RefineToFinePeak(hood, spacing, gpBounds, Score);
+                if (s > bestScore)
+                {
+                    bestScore = s;
+                    bestLocation = (x, y);
+                }
+            }
+
+            // Global max at (8, 8) is unreachable; nearest in-bounds peak is C at (4.27, 4.81)
+            Assert.That(bestLocation.x, Is.EqualTo(4.27f).Within(0.005f));
+            Assert.That(bestLocation.y, Is.EqualTo(4.81f).Within(0.005f));
+            Assert.That(bestScore, Is.EqualTo(108f).Within(0.01f));
+        }
+
+        [Test]
+        public void FullSearch_PeakOnDiagonalBoundary_NotRejectedByOutOfRowNeighbor()
+        {
+            // Feasibility (same shape as the BigTest casing-search constraints):
+            //   x ∈ [0, 5]         — separate x limit
+            //   y ∈ [0, 8]         — separate y limit
+            //   x + y ∈ [2, 10]    — min and max combined limits (recoil analogue)
+            //
+            // Score landscape — four bump centres:
+            //   (1.00, 1.00) → +5    inside, far from global max
+            //   (2.00, 5.00) → +6    inside, mid-distance
+            //   (5.00, 5.00) → +8    inside, sits on BOTH the x = 5 wall AND the x + y = 10 diagonal
+            //   (8.00, 8.00) → +10   outside (x > 5) — global max, unreachable
+            //
+            // The peak at (5, 5) is the one the fine search should ultimately return:
+            //   highest in-bounds value, nearest to the global max at (8, 8).
+
+            float gridSize = 1f;
+            float spacing = 0.01f;
+            int maxRGIncrementCount = 8;
+
+            (int, int) gpIncrementRange(int rgInc)
+            {
+                float y = rgInc * gridSize;
+                float minX = MathF.Max(0f, 2f - y);
+                float maxX = MathF.Min(5f, 10f - y);
+                return ((int)MathF.Ceiling(minX / gridSize),
+                        (int)MathF.Floor(maxX / gridSize));
+            }
+
+            (float, float) gpBounds(float y)
+            {
+                float minX = MathF.Max(0f, 2f - y);
+                float maxX = MathF.Min(5f, 10f - y);
+                return (minX, maxX);
+            }
+
+            static float Bump(float x, float y, float cx, float cy, float value)
+                => value - 4f * ((x - cx) * (x - cx) + (y - cy) * (y - cy));
+
+            static float Score(float x, float y)
+            {
+                float fA = Bump(x, y, 1.00f, 1.00f, 5f);
+                float fB = Bump(x, y, 2.00f, 5.00f, 6f);
+                float fC = Bump(x, y, 5.00f, 5.00f, 8f);
+                float fD = Bump(x, y, 8.00f, 8.00f, 10f);
+                float baseScore = 100f + MathF.Max(MathF.Max(fA, fB), MathF.Max(fC, fD));
+
+                // Lure that simulates ShellTest2 returning a misleadingly high score
+                // for an over-bracket configuration: any (x, y) where x + y exceeds
+                // the upper-diagonal constraint gets a +50 bonus.
+                if (x + y > 10f) baseScore += 50f;
+
+                return baseScore;
+            }
+
+            HashSet<Neighborhood> peaks = ShellCalc.FindCoarsePeaks(
+                maxRGIncrementCount, gridSize, gpIncrementRange, Score);
+
+            Assert.That(peaks.Count, Is.GreaterThanOrEqualTo(2),
+                "landscape has three in-bounds local maxima; coarse search should detect multiple peaks");
+
+            // Coarse search should specifically detect (5, 5), which is the peak the
+            // out-of-row top neighbour would lure us away from under the old code.
+            Assert.That(peaks.Select(p => (p.CenterGP, p.CenterRG)),
+                Has.Member((5f, 5f)),
+                "peak at the x = 5, x + y = 10 corner should not be rejected by an out-of-row neighbour");
+
+            float bestScore = float.NegativeInfinity;
+            (float x, float y) bestLocation = (0f, 0f);
+            foreach (Neighborhood hood in peaks)
+            {
+                var (x, y, s) = ShellCalc.RefineToFinePeak(hood, spacing, gpBounds, Score);
+                if (s > bestScore)
+                {
+                    bestScore = s;
+                    bestLocation = (x, y);
+                }
+            }
+
+            Assert.That(bestLocation.x, Is.EqualTo(5.00f).Within(0.005f));
+            Assert.That(bestLocation.y, Is.EqualTo(5.00f).Within(0.005f));
+            Assert.That(bestScore, Is.EqualTo(108f).Within(0.01f));
+        }
+
+        [Test]
         public void ReloadTimeTest()
         {
             float[] testModuleCounts = [1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0];

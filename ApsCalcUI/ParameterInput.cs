@@ -912,7 +912,7 @@ namespace ApsCalcUI
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void RunButton_Click(object sender, EventArgs e)
+        private async void RunButton_Click(object sender, EventArgs e)
         {
             bool error = false;
 
@@ -930,99 +930,313 @@ namespace ApsCalcUI
                 RunButton.Enabled = false;
                 RunButton.Text = "Running...";
 
-                try
+                if (NewTestCB.Checked)
                 {
-                    foreach (TestParameters testParameters in parameterList)
+                    try
                     {
-                        testParameters.ArmorScheme.CalculateLayerAC();
-                        foreach (float ac in testParameters.TargetACList)
+                        await Task.Run(() =>
                         {
-                            ShellCalc MakeShellCalc(int gauge, float gaugeMultiplier) => new(
-                                                                testParameters.BarrelCount,
-                                    gauge,
-                                    MathF.Pow(gauge / 500f, 1.8f),
-                                    testParameters.HeadIndices,
-                                    testParameters.BaseModule,
-                                    testParameters.FixedModulecounts,
-                                    testParameters.MinModuleCount,
-                                    testParameters.VariableModuleIndices,
-                                    testParameters.RegularClipsPerLoader,
-                                    testParameters.RegularInputsPerLoader,
-                                    testParameters.BeltfedClipsPerLoader,
-                                    testParameters.BeltfedInputsPerLoader,
-                                    testParameters.UsesAmmoEjector,
-                                    testParameters.MaxGPCasingCount,
-                                    testParameters.CasingIncrement,
-                                    testParameters.MaxRGCasingCount,
-                                    testParameters.MinLength,
-                                    testParameters.MaxLength,
-                                    testParameters.MaxDraw,
-                                    testParameters.MaxRecoil,
-                                    testParameters.MinVelocity,
-                                    testParameters.MinEffectiveRange,
-                                    testParameters.ImpactAngle,
-                                    testParameters.SabotAngleMultiplier,
-                                    testParameters.NonSabotAngleMultiplier,
-                                    ac,
-                                    testParameters.DamageType,
-                                    testParameters.FragConeAngle,
-                                    testParameters.FragAngleMultiplier,
-                                    testParameters.MinDisruptor,
-                                    testParameters.ArmorScheme,
-                                    testParameters.TestType,
-                                    testParameters.TestInterval,
-                                    testParameters.StoragePerVolume,
-                                    testParameters.StoragePerCost,
-                                    testParameters.EnginePpm,
-                                    testParameters.EnginePpv,
-                                    testParameters.EnginePpc,
-                                    testParameters.EngineUsesFuel,
-                                    testParameters.FiringPieceIsDif,
-                                    testParameters.GunUsesRecoilAbsorbers,
-                                    testParameters.MaxInaccuracy,
-                                    testParameters.RateOfFireRpm,
-                                    testParameters.LimitBarrelLength,
-                                    testParameters.MaxBarrelLength,
-                                    testParameters.BarrelLengthLimitType,
-                                    testParameters.VerboseOutputIsChecked,
-                                    testParameters.RawNumberOutputIsChecked,
-                                    testParameters.ColumnDelimiter
-                                );
-                            ConcurrentBag<Shell> shellBag = [];
-                            Parallel.For(testParameters.MinGauge, testParameters.MaxGauge + 1, gauge =>
+                            ParallelOptions options = new() { MaxDegreeOfParallelism = (int)MathF.Ceiling(Environment.ProcessorCount * 0.75f) };
+                            foreach (TestParameters testParameters in parameterList)
                             {
-                                float gaugeMultiplier = Shell.CalculateGaugeMultiplier(gauge);
-                                ShellCalc calcLocal = MakeShellCalc(gauge, gaugeMultiplier);
-                                calcLocal.ShellTest();
-                                calcLocal.AddTopShellsToLocalList();
-
-                                foreach (Shell topShellLocal in calcLocal.TopShellsLocal)
+                                Stopwatch stopwatch = new();
+                                stopwatch.Start();
+                                testParameters.ArmorScheme.CalculateLayerAC();
+                                foreach (float ac in testParameters.TargetACList)
                                 {
-                                    shellBag.Add(topShellLocal);
+                                    ShellCalc MakeShellCalc(int gauge, float gaugeMultiplier) => new(
+                                                                        testParameters.BarrelCount,
+                                            gauge,
+                                            MathF.Pow(gauge / 500f, 1.8f),
+                                            testParameters.HeadIndices,
+                                            testParameters.BaseModule,
+                                            testParameters.FixedModulecounts,
+                                            testParameters.MinModuleCount,
+                                            testParameters.VariableModuleIndices,
+                                            testParameters.RegularClipsPerLoader,
+                                            testParameters.RegularInputsPerLoader,
+                                            testParameters.BeltfedClipsPerLoader,
+                                            testParameters.BeltfedInputsPerLoader,
+                                            testParameters.UsesAmmoEjector,
+                                            testParameters.MaxGPCasingCount,
+                                            testParameters.CasingIncrement,
+                                            testParameters.MaxRGCasingCount,
+                                            testParameters.MinLength,
+                                            testParameters.MaxLength,
+                                            testParameters.MaxDraw,
+                                            testParameters.MaxRecoil,
+                                            testParameters.MinVelocity,
+                                            testParameters.MinEffectiveRange,
+                                            testParameters.ImpactAngle,
+                                            testParameters.SabotAngleMultiplier,
+                                            testParameters.NonSabotAngleMultiplier,
+                                            ac,
+                                            testParameters.DamageType,
+                                            testParameters.FragConeAngle,
+                                            testParameters.FragAngleMultiplier,
+                                            testParameters.MinDisruptor,
+                                            testParameters.ArmorScheme,
+                                            testParameters.TestType,
+                                            testParameters.TestInterval,
+                                            testParameters.StoragePerVolume,
+                                            testParameters.StoragePerCost,
+                                            testParameters.EnginePpm,
+                                            testParameters.EnginePpv,
+                                            testParameters.EnginePpc,
+                                            testParameters.EngineUsesFuel,
+                                            testParameters.FiringPieceIsDif,
+                                            testParameters.GunUsesRecoilAbsorbers,
+                                            testParameters.MaxInaccuracy,
+                                            testParameters.RateOfFireRpm,
+                                            testParameters.LimitBarrelLength,
+                                            testParameters.MaxBarrelLength,
+                                            testParameters.BarrelLengthLimitType,
+                                            testParameters.VerboseOutputIsChecked,
+                                            testParameters.RawNumberOutputIsChecked,
+                                            testParameters.ColumnDelimiter
+                                        );
+                                    // Shared merged-results dictionary, one entry per LoaderBracket
+                                    Dictionary<LoaderBracket, Shell> finalShells = [];
+                                    object mergeLock = new();
+
+                                    // Capture the scoring criteria once for use inside the parallel section
+                                    DamageType damageType = testParameters.DamageType;
+                                    TestType testType = testParameters.TestType;
+
+                                    float ScoreOf(Shell s) => testType == TestType.DpsPerCost
+                                        ? s.DpsPerCostDict[damageType]
+                                        : s.DpsPerVolumeDict[damageType];
+
+                                    Parallel.For(
+                                        testParameters.MinGauge,
+                                        testParameters.MaxGauge + 1,
+                                        options,
+                                        localInit: () => new Dictionary<LoaderBracket, Shell>(),
+                                        body: (gauge, _, threadLocal) =>
+                                        {
+                                            ShellCalc calcLocal = MakeShellCalc(gauge, Shell.CalculateGaugeMultiplier(gauge));
+                                            calcLocal.BigTest();
+
+                                            foreach (var (bracket, shell) in calcLocal.TopShells)
+                                            {
+                                                // Skip brackets where BigTest never found a feasible config
+                                                if (shell.DpsDict[damageType] <= 0) continue;
+
+                                                if (!threadLocal.TryGetValue(bracket, out Shell current)
+                                                    || ScoreOf(shell) > ScoreOf(current))
+                                                {
+                                                    threadLocal[bracket] = shell;
+                                                }
+                                            }
+                                            return threadLocal;
+                                        },
+                                        localFinally: threadLocal =>
+                                        {
+                                            lock (mergeLock)
+                                            {
+                                                foreach (var (bracket, shell) in threadLocal)
+                                                {
+                                                    if (!finalShells.TryGetValue(bracket, out Shell current)
+                                                        || ScoreOf(shell) > ScoreOf(current))
+                                                    {
+                                                        finalShells[bracket] = shell;
+                                                    }
+                                                }
+                                            }
+                                        });
+
+                                    // Build the output host. Gauge values don't matter — WriteTopShells reads only
+                                    // TopDpsShells, which is populated below from finalShells.
+                                    ShellCalc calcFinal = MakeShellCalc(0, 0);
+
+                                    // Temporary bridge from new dictionary to the string-keyed dictionary the
+                                    // existing writer reads. Will be unnecessary once ShellWriter consumes
+                                    // TopShells directly. Iterate calcFinal.LoaderBrackets so column order
+                                    // remains deterministic.
+                                    foreach (LoaderBracket bracket in calcFinal.LoaderBrackets)
+                                    {
+                                        if (finalShells.TryGetValue(bracket, out Shell winner)
+                                            && winner.DpsDict[damageType] > 0)
+                                        {
+                                            calcFinal.TopDpsShells[bracket.DisplayName] = winner;
+                                        }
+                                    }
+
+                                    stopwatch.Stop();
+                                    TimeSpan ts = stopwatch.Elapsed;
+                                    calcFinal.WriteTopShells(testParameters.MinGauge, testParameters.MaxGauge, ts);
                                 }
-                            });
+                                testsInQueue -= 1;
+                                TestsInQueueLabel.Text = "Tests Remaining: " + testsInQueue.ToString();
+                            }
+                        });                        
+                    }
+                    finally
+                    {
+                        // Unlock buttons and update queue count
+                        parameterList.Clear();
+                        testsInQueue = 0;
+                        TestsInQueueLabel.Text = "Tests in Queue: " + testsInQueue.ToString();
 
-                            ShellCalc calcFinal = MakeShellCalc(0, 0); // Gauge does not matter for CalcFinal
-
-                            calcFinal.FindTopShellsInList(shellBag);
-                            calcFinal.AddTopShellsToDictionary();
-                            calcFinal.WriteTopShells(testParameters.MinGauge, testParameters.MaxGauge);
-                        }
-                        testsInQueue -= 1;
-                        TestsInQueueLabel.Text = "Tests Remaining: " + testsInQueue.ToString();
+                        AddParametersButton.Enabled = true;
+                        RunButton.Enabled = true;
+                        RunButton.Text = "Run Queued Tests";
                     }
                 }
-                finally
+                else
                 {
-                    // Unlock buttons and update queue count
-                    parameterList.Clear();
-                    testsInQueue = 0;
-                    TestsInQueueLabel.Text = "Tests in Queue: " + testsInQueue.ToString();
+                    try
+                    {
+                        await Task.Run(() =>
+                        {
+                            ParallelOptions options = new() { MaxDegreeOfParallelism = (int)MathF.Ceiling(Environment.ProcessorCount * 0.75f) };
+                            foreach (TestParameters testParameters in parameterList)
+                            {
+                                Stopwatch stopwatch = new();
+                                stopwatch.Start();
+                                foreach (float ac in testParameters.TargetACList)
+                                {
+                                    ConcurrentBag<Shell> shellBag = [];
+                                    Parallel.For(testParameters.MinGauge, testParameters.MaxGauge + 1, options, gauge =>
+                                    {
+                                        ShellCalc calcLocal = new(
+                                            testParameters.BarrelCount,
+                                            gauge,
+                                            MathF.Pow(gauge / 500f, 1.8f),
+                                            testParameters.HeadIndices,
+                                            testParameters.BaseModule,
+                                            testParameters.FixedModulecounts,
+                                            testParameters.MinModuleCount,
+                                            testParameters.VariableModuleIndices,
+                                            testParameters.RegularClipsPerLoader,
+                                            testParameters.RegularInputsPerLoader,
+                                            testParameters.BeltfedClipsPerLoader,
+                                            testParameters.BeltfedInputsPerLoader,
+                                            testParameters.UsesAmmoEjector,
+                                            testParameters.MaxGPCasingCount,
+                                            testParameters.CasingIncrement,
+                                            testParameters.MaxRGCasingCount,
+                                            testParameters.MinLength,
+                                            testParameters.MaxLength,
+                                            testParameters.MaxDraw,
+                                            testParameters.MaxRecoil,
+                                            testParameters.MinVelocity,
+                                            testParameters.MinEffectiveRange,
+                                            testParameters.ImpactAngle,
+                                            testParameters.SabotAngleMultiplier,
+                                            testParameters.NonSabotAngleMultiplier,
+                                            ac,
+                                            testParameters.DamageType,
+                                            testParameters.FragConeAngle,
+                                            testParameters.FragAngleMultiplier,
+                                            testParameters.MinDisruptor,
+                                            testParameters.ArmorScheme,
+                                            testParameters.TestType,
+                                            testParameters.TestInterval,
+                                            testParameters.StoragePerVolume,
+                                            testParameters.StoragePerCost,
+                                            testParameters.EnginePpm,
+                                            testParameters.EnginePpv,
+                                            testParameters.EnginePpc,
+                                            testParameters.EngineUsesFuel,
+                                            testParameters.FiringPieceIsDif,
+                                            testParameters.GunUsesRecoilAbsorbers,
+                                            testParameters.MaxInaccuracy,
+                                            testParameters.RateOfFireRpm,
+                                            testParameters.LimitBarrelLength,
+                                            testParameters.MaxBarrelLength,
+                                            testParameters.BarrelLengthLimitType,
+                                            testParameters.VerboseOutputIsChecked,
+                                            testParameters.RawNumberOutputIsChecked,
+                                            testParameters.ColumnDelimiter
+                                            );
 
-                    AddParametersButton.Enabled = true;
-                    RunButton.Enabled = true;
-                    RunButton.Text = "Run Queued Tests";
-                }
+
+                                        calcLocal.ShellTest();
+                                        calcLocal.AddTopShellsToLocalList();
+
+                                        foreach (Shell topShellLocal in calcLocal.TopShellsLocal)
+                                        {
+                                            shellBag.Add(topShellLocal);
+                                        }
+                                    });
+
+                                    ShellCalc calcFinal = new(
+                                            testParameters.BarrelCount,
+                                            0f, // Gauge does not matter for calcFinal because it is only running tests on pre-calculated shells
+                                            0f, // Gauge multiplier ""
+                                            testParameters.HeadIndices,
+                                            testParameters.BaseModule,
+                                            testParameters.FixedModulecounts,
+                                            testParameters.MinModuleCount,
+                                            testParameters.VariableModuleIndices,
+                                            testParameters.RegularClipsPerLoader,
+                                            testParameters.RegularInputsPerLoader,
+                                            testParameters.BeltfedClipsPerLoader,
+                                            testParameters.BeltfedInputsPerLoader,
+                                            testParameters.UsesAmmoEjector,
+                                            testParameters.MaxGPCasingCount,
+                                            testParameters.CasingIncrement,
+                                            testParameters.MaxRGCasingCount,
+                                            testParameters.MinLength,
+                                            testParameters.MaxLength,
+                                            testParameters.MaxDraw,
+                                            testParameters.MaxRecoil,
+                                            testParameters.MinVelocity,
+                                            testParameters.MinEffectiveRange,
+                                            testParameters.ImpactAngle,
+                                            testParameters.SabotAngleMultiplier,
+                                            testParameters.NonSabotAngleMultiplier,
+                                            ac,
+                                            testParameters.DamageType,
+                                            testParameters.FragConeAngle,
+                                            testParameters.FragAngleMultiplier,
+                                            testParameters.MinDisruptor,
+                                            testParameters.ArmorScheme,
+                                            testParameters.TestType,
+                                            testParameters.TestInterval,
+                                            testParameters.StoragePerVolume,
+                                            testParameters.StoragePerCost,
+                                            testParameters.EnginePpm,
+                                            testParameters.EnginePpv,
+                                            testParameters.EnginePpc,
+                                            testParameters.EngineUsesFuel,
+                                            testParameters.FiringPieceIsDif,
+                                            testParameters.GunUsesRecoilAbsorbers,
+                                            testParameters.MaxInaccuracy,
+                                            testParameters.RateOfFireRpm,
+                                            testParameters.LimitBarrelLength,
+                                            testParameters.MaxBarrelLength,
+                                            testParameters.BarrelLengthLimitType,
+                                            testParameters.VerboseOutputIsChecked,
+                                            testParameters.RawNumberOutputIsChecked,
+                                            testParameters.ColumnDelimiter
+                                        );
+
+                                    calcFinal.FindTopShellsInList(shellBag);
+                                    calcFinal.AddTopShellsToDictionary();
+
+                                    stopwatch.Stop();
+                                    TimeSpan ts = stopwatch.Elapsed;
+                                    calcFinal.WriteTopShells(testParameters.MinGauge, testParameters.MaxGauge, ts);
+                                }
+                                testsInQueue -= 1;
+                                TestsInQueueLabel.Text = "Tests Remaining: " + testsInQueue.ToString();
+                            }
+                        });
+                    }
+                    finally
+                    {
+                        // Unlock buttons and update queue count
+                        parameterList.Clear();
+                        testsInQueue = 0;
+                        TestsInQueueLabel.Text = "Tests in Queue: " + testsInQueue.ToString();
+
+                        AddParametersButton.Enabled = true;
+                        RunButton.Enabled = true;
+                        RunButton.Text = "Run Queued Tests";
+                    }
+                }    
             }
         }
     }
