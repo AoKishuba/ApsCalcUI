@@ -13,8 +13,8 @@ If running from the downloaded .zip file, run the executable "ApsCalcUI".
 The link to download is available in my Discord repository, linked above.
 
 ---- TEST PARAMETERS ----
-NOTE: Results for each test will be written to a .csv file in the ApsCalcUI
-folder. Open using a spreadsheet program, such as LibreOffice Calc, using 
+NOTE: Results for each test will be written to a .csv file in the folder with
+the .exe. Open using a spreadsheet program, such as LibreOffice Calc, using 
 UTF-8 encoding. If "Comma Decimal Separator" is checked, use semicolon column
 separators; otherwise, use comma separators. Filenames are automatically 
 generated from current time. An example filename is "2021-07-04_09-12-11-12".
@@ -26,16 +26,20 @@ limit max gauge. At low calibers, barrel count is a cosmetic choice.
 Minimum Gauge: smallest gauge to be tested, in mm. Must be greater than 18 mm.
 
 Maximum Gauge: largest gauge to be tested, in mm. Must be greater than or
-equal than Minimum Gauge and less than or equal to 500 mm (or the max allowed
+equal to Minimum Gauge and less than or equal to 500 mm (or the max allowed
 by the barrel count, whichever is less).
 
 DIF Checkbox: Check if the inputs will be mounted directly to the firing
 piece, as opposed to using clips. This is known as Direct Input Feed, or DIF,
-and allows for longer shells (10 000mm in vanilla; 20 000mm with 1 000mm APS
+and allows for longer shells (10_000mm in vanilla; 20_000mm with 1_000mm APS
 mod), but limits the gun to 4 inputs max, and doubles reload time.
 
-1 000mm APS Mod: if checked, allows the max gauge to be set as high as 
-1 000mm. This gauge is not possible ingame without mods.
+1_000mm APS Mod: if checked, allows the max gauge to be set as high as 
+1_000mm. This gauge is not possible ingame without mods.
+
+Recoil absorbers: if unchecked, gun will not use recoil absorbers. If "limit 
+barrel length" is checked and "Recoil absorbers" is unchecked, shells will be
+limited by recoil as well as projectile length.
 
 Impact Angle: Angle of impact from perpendicular, in °. Kinetic damage is 
 multiplied by the absolute value of the cosine of this angle: a 0° impact
@@ -47,9 +51,9 @@ against a beam slope (45°) will add up to a 135° impact, dealing about 70%
 damage.
 Note also that, as of Alpha 3.5.0 (2022-04-26), Sabot head uses 3/4 the angle
 for Kinetic damage calculation purposes.
-Hollow point head and CIWS (kinetic with AC 20) ignore impact angle.
+Hollow point head and CIWS (any kinetic with AC 20) ignore impact angle.
 
-Head Indices: modules to be put at the front of the shells to be tested. The
+Head Modules: modules to be put at the front of the shells to be tested. The
 frontmost module on a shell is weighted in certain calculations, and can have
 a large effect on shell performance. Some heads, like the Disruptor Conduit,
 add functionality. Any module other than the dedicated base modules can be put
@@ -57,8 +61,9 @@ at the front of a shell, although the dedicated "Head" modules offer the best
 performance for any shell type.
 Note that while the optimizer does not include Squash Head (HESH), the 
 Shaped Charge Head (HEAT) works as a substitute for calculations. The damage 
-numbers will not match HESH damage numbers, but the configurations will be 
-otherwise identical.
+numbers will not match HESH damage numbers, but both heads calculate damage
+using the same variables, so what is optimal for HEAT will be optimal for
+HESH.
 
 Base Module: module to be put at the back of the projectile (the part of the
 shell which hits the target - excludes gunpowder and railgun casings). The
@@ -66,43 +71,48 @@ base modules add functionality or modify performance, and in general I
 recommend using some kind of base; test with Base Bleeder versus no base if
 no additional functionality is required.
 	Visible Tracer: prompts Rate of Fire input. Visible tracer bonus to 
-	inaccuracy scales with rate of fire.
+	inaccuracy scales with rate of fire. Rate of Fire input is not used
+    for any other calculations except tracer inaccuracy bonus.
 
 Fixed Modules: modules to be included with every shell.
 n.b. The input validation for fixed modules is not perfect. Please double-
 check to ensure the total fixed module count adds up to 18 or less (17 if
 using a base).
 
-Variable Module Indices: the optimizer will test every possible combination
+Variable Modules: the optimizer will test every possible combination
 of variable modules. Examples would be Solid Body and Sabot Body for kinetic
 shells, or Solid Body and Frag Body for APF pendepth.
 
 Clips Per Loader: number of clips connected directly to loader. Clips cost 
 less than loaders and can hold more shells, but are more fragile and 
-difficult to Tetris.
+difficult to Tetris. Draba used 0clip and you should too.
 
 Inputs Per Loader: ammo Feeder Inputs per loader/clip cluster.
 
 Ammo Ejector: check to include Ammo ejector, which ejects shells when a clip
 or loader is destroyed. Automatically checked if Emergency Defuze is checked,
 but can also be included without one (used for GP kinetic shells).
-n.b. Beltfed loaders cannot use Ammo ejectors; this option has no effect on 
-them.
+n.b. Beltfed loaders cannot use Ammo ejectors. If Emergency Defuse is checked,
+defuses will not be added to shells tested for beltfed performance (making
+room for more casings or payload modules instead).
 
-Max Gunpowder Casings: maximum allowed number of GP casings. Note that GP
+Max GP Casings: maximum allowed number of gunpowder casings. Note that GP
 casing length is adjustable up to two decimal places, although a decimal
 casing counts as a complete module for module count limit purposes.
 
-GP Interval: Propellant amount can be varied by increments of 0.01. By default,
-every possible increment will be tested (ie, 0.00 through Max GP Casings, 
-adding 0.01 casings between tests). Larger intervals, up to 1 casing, skip
-shells but greatly speed testing.
+Casing Increment: Both Railgun and Gunpowder casings can have their lengths
+adjusted in 0.01-module increments. By default, the optimizer will test to
+this level of granularity to ensure thoroughness. Increasing Casing Increment
+will greatly speed testing by widening the gap between test points, at the 
+cost of potentially missing better-performing configurations.
 
 Max Railgun Casings: maximum allowed number of RG casings. RG casings
 increase the max rail draw of the shell, but are not part of the projectile,
 and so do not reduce the shell velocity for a given amount of charge. This
 means a shell with RG casings can be "supercharged" to go faster than it
-would under its own max draw.
+would under its own max draw. Additionally, rail draw applied to casings
+(as opposed to the projectile itself) apply less recoil penalty for the 
+same velocity boost.
 
 Max Rail Draw: maximum allowed rail draw. Note that the shell itself will
 have a max draw (to simulate the maximum force the shell could withstand).
@@ -116,36 +126,25 @@ Max Shell Length: maximum length of the shell, inclusive. Must be greater
 than the smallest possible shell - ie, one with the minimum gauge, made up
 only of fixed modules (the form automatically enforces this restriction).
 
-Minimum Velocity: minimum shell velocity. Note that a high minimum velocity
+Min Velocity: minimum shell velocity. Note that a high minimum velocity
 may be impossible to meet within the casing and rail draw restrictions.
 
-Minimum Effective Range: effective range is the distance a shell will travel
+Min Eff. Range: effective range is the distance a shell will travel
 in its "lifetime", after which it will become useless. Particularly small
 shells may have an effective range of less than 1 km, and may not be suitable
 for use on certain craft.
 
-Maximum Inaccuracy: the inaccuracy value the optimizer will use to calculate
+Max Inaccuracy: the inaccuracy value the optimizer will use to calculate
 required barrel length. Only enabled if the Limit Barrel Length Checkbox is
 checked (see below); has no effect otherwise.
 
 Limit Barrel Length Checkbox: enables barrel length limits. Every shell has a
-Barrel Length for 0.3° Inaccuracy and a Barrel Length For Max Propellant Burn.
-Enabling length limits will cause the optimizer to discard any shell whose
-required minimum barrel length (for inaccuracy or propellant burn) exceeds 
-the limit. The number entered can represent a fixed length (select "m" from
-the dropdown) or a multiple of the gauge (select "calibers").
-
-Pendepth Checkbox: enables the Target Armor Scheme controls. With the box
-checked, the optimizer will only count shells which are capable of destroying
-the target armor configuration using either kinetic or thump damage.
-
-Target Armor Configuration Dropdown and Buttons: allows the user to input
-the configuration of the target armor. Note that all slopes are assumed to
-be built with the airgap facing outwards, away from the center of the craft.
-Additionally, each sloped block has a "shallow" and a "steep" option, for 
-shells hitting parallel or perpendicular to the slope. Shallow angles are 
-nearer parallel with the surface of the block, and thus will have a more
-severe kinetic damage reduction and a greater ricochet chance.
+Barrel Length for Inaccuracy (default 0.3°--this is what is shown ingame)
+and a Barrel Length For Max Propellant Burn. Enabling length limits will cause
+the optimizer to discard any shell whose required minimum barrel length (for 
+inaccuracy or propellant burn) exceeds the limit. The number entered can
+represent a fixed length (select "m" from the dropdown) or a multiple of the
+gauge (select "calibers").
 
 Damage Type: damage type to optimize.
   Kinetic. Prompts entry of target AC value(s). Note that more than one AC
@@ -175,7 +174,6 @@ Damage Type: damage type to optimize.
 
   Incendiary. Calculates fuel, assuming default settings.
 
-
 Test Type: whether to optimize for DPS per Volume or DPS per Cost. "Volume"
 and "Cost" are both marginal - they include the volume (or cost) only of
 components which scale linearly with number of loaders. That is to say,
@@ -183,6 +181,18 @@ components like the APS firing piece, barrels, gauge increases, &c, are not
 counted, because their proprotion of the cost depends on the size of the gun 
 and the Tetris skill of the builder. The components which are counted are the
 loader, input, recoil absorbers, coolers, and rail chargers.
+
+Pendepth Checkbox: enables the Target Armor Scheme controls. With the box
+checked, the optimizer will only count shells which are capable of destroying
+the target armor configuration using either kinetic or thump damage.
+
+Target Armor Configuration Dropdown and Buttons: allows the user to input
+the configuration of the target armor. Note that all slopes are assumed to
+be built with the airgap facing outwards, away from the center of the craft.
+Additionally, each sloped block has a "shallow" and a "steep" option, for 
+shells hitting parallel or perpendicular to the slope. Shallow angles are 
+nearer parallel with the surface of the block, and thus will have a more
+severe kinetic damage reduction and a greater ricochet chance.
 
 Test Interval: the duration in minutes for which the gun will fire. This does
 not affect the cost of the gun itself (loader, recoil, charger, cooler, 
@@ -208,6 +218,14 @@ which requires Fuel access (as shown on the default tab of the V menu). This
 includes Fuel engines and Custom jet engines. Disabled unless Max Rail Draw
 > 0.
 
+Brute force testing: As of Stable 4.3.2, 2026-06-06, the optimizer uses a new
+coarse-to-fine grid search algorithm for optimizing casing counts. This new
+algorithm has been rigorously tested and should catch every possible optimal
+configuration, but the old brute-force logic is still available for double-
+checking and debugging purposes.
+n.b. brute-force testing is VERY slow with the default Casing Increment, even
+with relatively small casing counts.
+
 Verbose Output Checkbox: Check to show detailed volume and cost statistics
 (see end of Output section below). Useful mostly for debugging or for advanced
 users trying to do additional analysis using raw shell stats.
@@ -229,10 +247,21 @@ cause the optimizer to output using semicolon column delimiters instead.
 
 ---- OPTIMIZER OUTPUT ----
 The optimizer output always begins with the test parameters entered by the 
-user at runtime. Below that are the top shells for each loader length for
-which any shells were generated (depending on length and gauge restrictions).
+user at runtime. One note here: when testing for any damage type other than
+kinetic, "Target AC" will display either 0 (if Pendepth is unchecked) or a
+weighted average AC of the entered target armor configuration. This derived
+average AC does not affect shell testing--it is only used on non-kinetic 
+shells--but instead serves to make the displayed kinetic damage values
+better reflect actual performance, and to allow some apples-to-apples
+comparison of pendepth or SAP shells versus raw kinetic or sandblasters.
+
+Parameters are followed by the time taken to run the test (HH:MM:SS).
+
+Below that are the top shells for each loader length for which any shells
+were generated (depending on length and gauge restrictions).
 Each shell stat cluster starts with the shell length.
 
+Shells: basic stats quick reference
 Gauge (mm): shell diameter; caliber.
 
 Total length (mm): length of the entire shell. Used to determine loader size.
@@ -249,19 +278,31 @@ for tests with 0 max GP casings.
 RG casing: number of railgun casings, if any. Not shown for tests with 0 max
 RG casings.
 
+Rail draw: rail draw, if any.
+
 Solid body/Sabot body/HE body/&c: number of each type of body module.
 
 Head: the module at the head of the shell (at the bottom of the controller).
 
-Rail draw: rail draw, if any.
-
 DPS per cost/DPS per volume: the most important stats, shell damage per second
 divided by total cost (and volume) for the duration of the test interval.
 
+Shell Stats: more detailed stats for verifying configurations (and for debugging)
+
+Total Recoil: power applied to the projectile, equal to rail draw + recoil from GP
+
+Felt Recoil: recoil applied to the craft and used for inaccuracy calculations.
+Equal to Total Recoil if no RG casings are used; otherwise will be lower.
+
+Velocity modifier: multiplier determined by head module and presence of fins
+or base bleeder.
 
 Velocity (m/s): muzzle velocity.
 
 Effective range (m): range at which velocity decreases dramatically.
+
+Inaccuracy modifier: multiplier determined by head module and presence of fins,
+base bleeder, or tracer.
 
 Barrel length for inacccuracy (m): minimum barrel length to achieve desired
 inaccuracy (default 0.3°). Note that, unlike the ingame UI, the optimizer 
@@ -271,7 +312,7 @@ this number may not match what is shown in the APS Shell Editor.
 Barrel length for ful propellant burn (m): same value as shown ingame.
 
 Damage:
-	Kinetic shells will show raw damage, AP, reduction due to impact 
+	All shells will show raw kinetic damage, AP, reduction due to impact 
 		angle, and effective damage after applying AC reduction.
 	Munition defense shells show damage and explosion radius.
 	Frag shells show frag count, damage per frag, and total damage.
