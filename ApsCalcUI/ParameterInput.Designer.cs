@@ -164,7 +164,7 @@ namespace ApsCalcUI
             RegularClipCountLabel = new System.Windows.Forms.Label();
             BeltfedClipCountLabel = new System.Windows.Forms.Label();
             CasingIncrementLabel = new System.Windows.Forms.Label();
-            NewTestCB = new System.Windows.Forms.CheckBox();
+            UseBruteForceCB = new System.Windows.Forms.CheckBox();
             ((System.ComponentModel.ISupportInitialize)MinGaugeUD).BeginInit();
             ((System.ComponentModel.ISupportInitialize)MaxGaugeUD).BeginInit();
             ((System.ComponentModel.ISupportInitialize)SolidBodyFixedUD).BeginInit();
@@ -1720,17 +1720,16 @@ namespace ApsCalcUI
             CasingIncrementLabel.TabIndex = 62;
             CasingIncrementLabel.Text = "Casing Increment";
             // 
-            // NewTestCB
+            // UseBruteForceCB
             // 
-            NewTestCB.AutoSize = true;
-            NewTestCB.ForeColor = System.Drawing.SystemColors.ControlText;
-            NewTestCB.Location = new System.Drawing.Point(629, 560);
-            NewTestCB.Name = "NewTestCB";
-            NewTestCB.Size = new System.Drawing.Size(112, 19);
-            NewTestCB.TabIndex = 65;
-            NewTestCB.Text = "Super secret test";
-            ToolTip.SetToolTip(NewTestCB, "Don't check this. If this is in a production version, tell Ao he screwed up");
-            NewTestCB.UseVisualStyleBackColor = true;
+            UseBruteForceCB.AutoSize = true;
+            UseBruteForceCB.Location = new System.Drawing.Point(629, 555);
+            UseBruteForceCB.Name = "UseBruteForceCB";
+            UseBruteForceCB.Size = new System.Drawing.Size(123, 19);
+            UseBruteForceCB.TabIndex = 65;
+            UseBruteForceCB.Text = "Brute force testing";
+            ToolTip.SetToolTip(UseBruteForceCB, "Check to use old brute-force logic.\r\nVERY slow, especially for hybrid shells. Use only for debugging\r\nor if you suspect the new algorithm is missing something.");
+            UseBruteForceCB.UseVisualStyleBackColor = true;
             // 
             // ParameterInput
             // 
@@ -1739,7 +1738,7 @@ namespace ApsCalcUI
             AutoScroll = true;
             BackColor = System.Drawing.SystemColors.Window;
             ClientSize = new System.Drawing.Size(800, 726);
-            Controls.Add(NewTestCB);
+            Controls.Add(UseBruteForceCB);
             Controls.Add(VerboseOutputCB);
             Controls.Add(CasingIncrementUD);
             Controls.Add(CasingIncrementLabel);
@@ -2000,7 +1999,7 @@ namespace ApsCalcUI
         private System.Windows.Forms.NumericUpDown CasingIncrementUD;
         private System.Windows.Forms.Label CasingIncrementLabel;
         private System.Windows.Forms.CheckBox VerboseOutputCB;
-        private System.Windows.Forms.CheckBox NewTestCB;
+        private System.Windows.Forms.CheckBox UseBruteForceCB;
     }
 }
 

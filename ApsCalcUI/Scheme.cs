@@ -37,6 +37,25 @@ namespace ApsCalcUI
             LayerList[^1].AC = LayerList[^1].RawAC;
         }
 
+        /// <summary>
+        /// Calculates weighted average of AC by layer HP. Used to calculate average applied KD
+        /// </summary>
+        public float GetAverageAC()
+        {
+            if (LayerList.Count == 0) return 0;
+
+            float totalHP = 0;
+            float ACTimesHP = 0;
+            for (int layerIndex = 0;layerIndex < LayerList.Count -1;layerIndex++)
+            {
+                Layer currentLayer = LayerList[layerIndex];
+                ACTimesHP += currentLayer.AC * currentLayer.HP;
+                totalHP += currentLayer.HP;
+            }
+
+            float averageAC = totalHP > 0 ? ACTimesHP / totalHP : 0;
+            return averageAC;
+        }
 
         /// <summary>
         /// Calculates KD required to pen armor at given AP

@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -326,29 +325,7 @@ namespace ApsCalcUI
         // Store top-DPS shells by loader length
         public LoaderBracket[] LoaderBrackets { get; }
         public Dictionary<LoaderBracket, Shell> TopShells { get; }
-        public Shell TopBelt { get; set; } = new(default, default, default, default, default, default, default, default,
-            default, default, default, default, default, default, default, default);
-        public Shell Top1000 { get; set; } = new(default, default, default, default, default, default, default, default,
-            default, default, default, default, default, default, default, default);
-        public Shell Top2000 { get; set; } = new(default, default, default, default, default, default, default, default,
-            default, default, default, default, default, default, default, default);
-        public Shell Top3000 { get; set; } = new(default, default, default, default, default, default, default, default,
-            default, default, default, default, default, default, default, default);
-        public Shell Top4000 { get; set; } = new(default, default, default, default, default, default, default, default,
-            default, default, default, default, default, default, default, default);
-        public Shell Top5000 { get; set; } = new(default, default, default, default, default, default, default, default,
-            default, default, default, default, default, default, default, default);
-        public Shell Top6000 { get; set; } = new(default, default, default, default, default, default, default, default,
-            default, default, default, default, default, default, default, default);
-        public Shell Top7000 { get; set; } = new(default, default, default, default, default, default, default, default,
-            default, default, default, default, default, default, default, default);
-        public Shell Top8000 { get; set; } = new(default, default, default, default, default, default, default, default,
-            default, default, default, default, default, default, default, default);
-        public Shell TopDif { get; set; } = new(default, default, default, default, default, default, default, default,
-            default, default, default, default, default, default, default, default);
-
         public Dictionary<string, Shell> TopDpsShells { get; set; } = [];
-        public List<Shell> TopShellsLocal { get; set; } = [];
 
         private IEnumerable<ModuleConfig> GenerateModConfigs()
         {
@@ -470,6 +447,274 @@ namespace ApsCalcUI
                         }
                     }
                 }
+            }
+        }
+
+        /// <summary>
+        /// Iterates over possible configurations and stores best according to test parameters
+        /// </summary>
+        public void ShellTest()
+        {
+            // Set up target armor scheme for testing
+            foreach (ModuleConfig modConfig in GenerateModConfigs())
+            {
+                Shell shellUnderTesting = new(
+                    BarrelCount,
+                    Gauge,
+                    GaugeMultiplier,
+                    false,
+                    Module.AllModules[modConfig.HeadIndex],
+                    BaseModule,
+                    RegularClipsPerLoader,
+                    RegularInputsPerLoader,
+                    BeltfedClipsPerLoader,
+                    BeltfedInputsPerLoader,
+                    UsesAmmoEjector,
+                    modConfig.GPCount,
+                    modConfig.RGCount,
+                    RateOfFireRpm,
+                    GunUsesRecoilAbsorbers,
+                    FiringPieceIsDif
+                    );
+                FixedModuleCounts.CopyTo(shellUnderTesting.BodyModuleCounts, 0);
+
+                // Add variable modules
+                for (int i = 0; i < modConfig.VariableModCounts.Length; i++)
+                {
+                    int moduleIndex = VariableModuleIndices[i];
+                    float moduleCount = modConfig.VariableModCounts[i];
+                    shellUnderTesting.BodyModuleCounts[moduleIndex] += moduleCount;
+                }
+
+                shellUnderTesting.CalculateLengths();
+                shellUnderTesting.GetModuleCounts();
+                shellUnderTesting.CalculateRecoil();
+                bool lengthWithinBounds = true;
+                if (LimitBarrelLength
+                    && shellUnderTesting.ProjectileLength
+                        > shellUnderTesting.CalculateMaxProjectileLengthForInaccuracy(MaxBarrelLengthInM, MaxInaccuracy))
+                {
+                    lengthWithinBounds = false;
+                }
+                if (shellUnderTesting.TotalLength <= MinShellLength || shellUnderTesting.TotalLength > MaxShellLength)
+                {
+                    lengthWithinBounds = false;
+                }
+
+                if (lengthWithinBounds)
+                {
+                    shellUnderTesting.CalculateVelocityModifier();
+                    shellUnderTesting.CalculateDamageModifierByType(DamageType);
+                    shellUnderTesting.CalculateMaxDraw();
+
+                    // Physical draw limit
+                    float maxDraw = MathF.Min(shellUnderTesting.MaxDrawShell, MaxDrawInput);
+                    // Limit by recoil. Projectile draw is 1 : 1 with recoil; draw applied to RG casings is affected by multiplier
+                    float maxRailRecoil = MaxRecoilInput - shellUnderTesting.GPRecoil;
+                    float maxCasingDrawForRecoil = MathF.Min(maxRailRecoil / shellUnderTesting.RGCasingFeltRecoilMultiplier, shellUnderTesting.MaxDrawCasing);
+                    float maxCasingRecoil = maxCasingDrawForRecoil * shellUnderTesting.RGCasingFeltRecoilMultiplier;
+                    float maxProjectileDrawForRecoil = maxRailRecoil - maxCasingRecoil;
+                    float maxDrawForRecoil = maxCasingDrawForRecoil + maxProjectileDrawForRecoil;
+                    maxDraw = MathF.Min(maxDraw, maxDrawForRecoil);
+                    // Limit by inaccuracy
+                    if (!shellUnderTesting.GunUsesRecoilAbsorbers)
+                    {
+                        maxDraw = MathF.Min(maxDraw, shellUnderTesting.CalculateMaxDrawForInaccuracy(MaxBarrelLengthInM, MaxInaccuracy, shellUnderTesting.MaxDrawCasing));
+                    }
+                    float minVelocity = MathF.Max(MinVelocityInput, TargetArmorScheme.CalculateMinVelocityToPenetrate(shellUnderTesting, ImpactAngleFromPerpendicularDegrees));
+                    float minDraw = shellUnderTesting.CalculateMinDrawForVelocityAndRange(minVelocity, MinEffectiveRangeInput);
+
+                    if (maxDraw >= minDraw)
+                    {
+                        shellUnderTesting.CalculateReloadTime(TestIntervalSeconds);
+                        shellUnderTesting.SabotAngleMultiplier = SabotAngleMultiplier;
+                        shellUnderTesting.NonSabotAngleMultiplier = NonSabotAngleMultiplier;
+                        shellUnderTesting.CalculateDamageByType(DamageType, FragAngleMultiplier);
+
+                        // Users can enter minimum disruptor values even when optimizing for other damage types
+                        if (MinDisruptor > 0 && DamageType != DamageType.Disruptor)
+                        {
+                            shellUnderTesting.CalculateDamageByType(DamageType.EMP, FragAngleMultiplier);
+                            shellUnderTesting.CalculateDamageByType(DamageType.Disruptor, FragAngleMultiplier);
+                        }
+
+                        if ((shellUnderTesting.DamageDict[DamageType.Disruptor] >= MinDisruptor) || MinDisruptor == 0)
+                        {
+                            shellUnderTesting.CalculateCooldownTime();
+                            shellUnderTesting.CalculateCoolerVolumeAndCost();
+                            shellUnderTesting.CalculateLoaderVolumeAndCost();
+                            shellUnderTesting.CalculateVariableVolumesAndCosts(TestIntervalSeconds, StoragePerVolume, StoragePerCost);
+
+                            // Determine which "DPS Per" dictionary will be used for testing
+                            Dictionary<DamageType, float> referenceDict = TestType == TestType.DpsPerVolume ?
+                                shellUnderTesting.DpsPerVolumeDict : shellUnderTesting.DpsPerCostDict;
+                            // Determine optimal rail draw
+                            float optimalDraw = maxDraw > 0 ?
+                                CalculateOptimalRailDraw(shellUnderTesting, maxDraw, minDraw, referenceDict)
+                                : 0;
+                            shellUnderTesting.RailDraw = optimalDraw;
+                            CompareToTopShells(shellUnderTesting, referenceDict);
+
+                            // Beltfed testing
+                            if (shellUnderTesting.TotalLength <= 1000f && !FiringPieceIsDif)
+                            {
+                                Shell shellUnderTestingBelt = new(
+                                    BarrelCount,
+                                    Gauge,
+                                    GaugeMultiplier,
+                                    true,
+                                    Module.AllModules[modConfig.HeadIndex],
+                                    BaseModule,
+                                    RegularClipsPerLoader,
+                                    RegularInputsPerLoader,
+                                    BeltfedClipsPerLoader,
+                                    BeltfedInputsPerLoader,
+                                    UsesAmmoEjector,
+                                    modConfig.GPCount,
+                                    modConfig.RGCount,
+                                    RateOfFireRpm,
+                                    GunUsesRecoilAbsorbers,
+                                    FiringPieceIsDif);
+                                shellUnderTesting.BodyModuleCounts.CopyTo(shellUnderTestingBelt.BodyModuleCounts, 0);
+
+                                // Beltfed loaders cannot use ejectors
+                                int modIndex = 0;
+                                foreach (float modCount in shellUnderTestingBelt.BodyModuleCounts)
+                                {
+                                    if (Module.AllModules[modIndex] == Module.Defuse)
+                                    {
+                                        shellUnderTestingBelt.BodyModuleCounts[modIndex] = 0f;
+                                        break;
+                                    }
+                                    else
+                                    {
+                                        modIndex++;
+                                    }
+                                }
+                                shellUnderTestingBelt.CalculateLengths();
+                                shellUnderTestingBelt.GetModuleCounts();
+                                shellUnderTestingBelt.CalculateRequiredBarrelLengths(MaxInaccuracy);
+                                shellUnderTestingBelt.CalculateVelocityModifier();
+                                shellUnderTestingBelt.CalculateRecoil();
+                                shellUnderTestingBelt.CalculateMaxDraw();
+                                shellUnderTestingBelt.CalculateReloadTime(TestIntervalSeconds);
+                                shellUnderTestingBelt.CalculateVariableVolumesAndCosts(
+                                    TestIntervalSeconds,
+                                    StoragePerVolume,
+                                    StoragePerCost);
+                                shellUnderTestingBelt.CalculateCooldownTime();
+                                shellUnderTestingBelt.CalculateDamageModifierByType(DamageType);
+                                shellUnderTestingBelt.SabotAngleMultiplier = SabotAngleMultiplier;
+                                shellUnderTestingBelt.NonSabotAngleMultiplier = NonSabotAngleMultiplier;
+                                shellUnderTestingBelt.CalculateDamageByType(DamageType, FragAngleMultiplier);
+                                shellUnderTestingBelt.CalculateLoaderVolumeAndCost();
+                                shellUnderTestingBelt.CalculateCoolerVolumeAndCost();
+
+                                // Beltfed does not use ejectors, so draw requirements may be different
+                                float maxDrawBelt = MathF.Min(shellUnderTestingBelt.MaxDrawShell, MaxDrawInput);
+                                float maxRailRecoilBelt = MaxRecoilInput - shellUnderTestingBelt.GPRecoil;
+                                float maxCasingDrawForRecoilBelt = MathF.Min(
+                                    maxRailRecoilBelt / shellUnderTestingBelt.RGCasingFeltRecoilMultiplier,
+                                    shellUnderTestingBelt.MaxDrawCasing);
+                                float maxCasingRecoilBelt = maxCasingDrawForRecoilBelt * shellUnderTestingBelt.RGCasingFeltRecoilMultiplier;
+                                float maxProjectileDrawForRecoilBelt = maxRailRecoilBelt - maxCasingRecoilBelt;
+                                maxDrawBelt = MathF.Min(maxDrawBelt, maxCasingDrawForRecoilBelt + maxProjectileDrawForRecoilBelt);
+                                if (!shellUnderTestingBelt.GunUsesRecoilAbsorbers)
+                                    maxDrawBelt = MathF.Min(maxDrawBelt,
+                                        shellUnderTestingBelt.CalculateMaxDrawForInaccuracy(MaxBarrelLengthInM, MaxInaccuracy, shellUnderTestingBelt.MaxDrawCasing));
+
+                                float minVelocityBelt = MathF.Max(MinVelocityInput,
+                                    TargetArmorScheme.CalculateMinVelocityToPenetrate(shellUnderTestingBelt, ImpactAngleFromPerpendicularDegrees));
+                                float minDrawBelt = shellUnderTestingBelt.CalculateMinDrawForVelocityAndRange(minVelocityBelt, MinEffectiveRangeInput);
+
+                                if (maxDrawBelt >= minDrawBelt)
+                                {
+                                    // Binary search to find optimal draw without testing every value
+                                    // Determine which "DPS Per" dictionary will be used for testing
+                                    Dictionary<DamageType, float> referenceDictBelt = TestType == TestType.DpsPerVolume ?
+                                        shellUnderTestingBelt.DpsPerVolumeDict : shellUnderTestingBelt.DpsPerCostDict;
+                                    optimalDraw = maxDrawBelt > 0 ?
+                                        CalculateOptimalRailDraw(shellUnderTestingBelt, maxDrawBelt, minDrawBelt, referenceDictBelt)
+                                        : 0;
+
+                                    shellUnderTestingBelt.RailDraw = optimalDraw;
+                                    shellUnderTestingBelt.CalculateVelocity();
+                                    shellUnderTestingBelt.CalculateEffectiveRange();
+                                    shellUnderTestingBelt.CalculateDpsByType(
+                                        DamageType, TargetAC, TestIntervalSeconds, StoragePerVolume, StoragePerCost,
+                                        EnginePpm, EnginePpv, EnginePpc, EngineUsesFuel, TargetArmorScheme,
+                                        ImpactAngleFromPerpendicularDegrees);
+
+                                    if (TryGetBracket(shellUnderTestingBelt.TotalLength, LoaderType.Belt, out LoaderBracket beltBracket))
+                                    {
+                                        Dictionary<DamageType, float> topReferenceDictBelt = TestType == TestType.DpsPerVolume ?
+                                            TopShells[beltBracket].DpsPerVolumeDict : TopShells[beltBracket].DpsPerCostDict;
+                                        if (referenceDictBelt[DamageType] > topReferenceDictBelt[DamageType])
+                                        {
+                                            TopShells[beltBracket] = shellUnderTestingBelt;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Finds loader bracket whose loader type and length range contain given shell length.
+        /// </summary>
+        bool TryGetBracket(float totalLength, LoaderType loaderType, out LoaderBracket bracket)
+        {
+            foreach (LoaderBracket candidate in LoaderBrackets)
+            {
+                if (candidate.LoaderType == loaderType
+                    && totalLength > candidate.MinLengthMMExclusive
+                    && totalLength <= candidate.MaxLengthMMInclusive)
+                {
+                    bracket = candidate;
+                    return true;
+                }
+            }
+            bracket = default;
+            return false;
+        }
+
+        /// <summary>
+        /// Brute-force result sink. Re-evaluates shell at its chosen draw, maps it to its loader
+        /// bracket by total length, and records it in TopShells if it beats incumbent. Mirrors
+        /// per-bracket bookkeeping BigTest performs so both paths populate TopShells identically.
+        /// </summary>
+        void CompareToTopShells(Shell shellUnderTesting, Dictionary<DamageType, float> referenceDict)
+        {
+            shellUnderTesting.CalculateVelocity();
+            shellUnderTesting.CalculateEffectiveRange();
+            shellUnderTesting.CalculateDpsByType(
+                DamageType,
+                TargetAC,
+                TestIntervalSeconds,
+                StoragePerVolume,
+                StoragePerCost,
+                EnginePpm,
+                EnginePpv,
+                EnginePpc,
+                EngineUsesFuel,
+                TargetArmorScheme,
+                ImpactAngleFromPerpendicularDegrees);
+
+            LoaderType loaderType = FiringPieceIsDif ? LoaderType.Dif : LoaderType.Regular;
+            if (!TryGetBracket(shellUnderTesting.TotalLength, loaderType, out LoaderBracket bracket))
+            {
+                return; // length outside any tracked bracket (i.e. > 8000 mm if not DIF)
+            }
+
+            Dictionary<DamageType, float> topReferenceDict = TestType == TestType.DpsPerVolume
+                ? TopShells[bracket].DpsPerVolumeDict
+                : TopShells[bracket].DpsPerCostDict;
+            if (referenceDict[DamageType] > topReferenceDict[DamageType])
+            {
+                TopShells[bracket] = shellUnderTesting;
             }
         }
 
@@ -626,7 +871,7 @@ namespace ApsCalcUI
         }
 
         /// <summary>
-        /// Computes the maximum total recoil achievable for any feasible (gp, rg, pd) allocation.
+        /// Computes maximum total recoil achievable for any feasible (gp, rg, pd) allocation.
         /// Solves a 3-variable LP exactly by enumerating all C(9, 3) = 84 vertex candidates.
         /// </summary>
         internal static float MaxAchievableTotalRecoil(
@@ -763,6 +1008,10 @@ namespace ApsCalcUI
             float minDraw,
             Dictionary<DamageType, float> referenceDict)
         {
+            if (DamageType != DamageType.Kinetic)
+            {
+                return MathF.Min(maxDraw, MathF.Ceiling(minDraw));
+            }
 
             // Shortcut impossible requirement
             shellUnderTesting.RailDraw = maxDraw;
@@ -846,124 +1095,6 @@ namespace ApsCalcUI
         }
 
         /// <summary>
-        /// Compares input shell to current top shells and keeps winner. Does not include belt
-        /// </summary>
-        /// <param name="shellUnderTesting">Shell being tested</param>
-        /// <param name="referenceDict">DPS per cost or per volume depending on test type</param>
-        void CompareToTopShells(Shell shellUnderTesting, Dictionary<DamageType, float> referenceDict)
-        {
-            // Check performance against top shells
-            shellUnderTesting.CalculateVelocity();
-            shellUnderTesting.CalculateEffectiveRange();
-            shellUnderTesting.CalculateDpsByType(
-                DamageType,
-                TargetAC,
-                TestIntervalSeconds,
-                StoragePerVolume,
-                StoragePerCost,
-                EnginePpm,
-                EnginePpv,
-                EnginePpc,
-                EngineUsesFuel,
-                TargetArmorScheme,
-                ImpactAngleFromPerpendicularDegrees);
-
-            if (FiringPieceIsDif)
-            {
-                Dictionary<DamageType, float> topReferenceDict = TestType == TestType.DpsPerVolume ?
-                    TopDif.DpsPerVolumeDict : TopDif.DpsPerCostDict;
-                if (referenceDict[DamageType] > topReferenceDict[DamageType])
-                {
-                    TopDif = shellUnderTesting;
-                }
-            }
-            else if (shellUnderTesting.TotalLength <= 1000f)
-            {
-                Dictionary<DamageType, float> topReferenceDict = TestType == TestType.DpsPerVolume ?
-                    Top1000.DpsPerVolumeDict : Top1000.DpsPerCostDict;
-                if (referenceDict[DamageType] > topReferenceDict[DamageType])
-                {
-                    Top1000 = shellUnderTesting;
-                }
-            }
-            else if (shellUnderTesting.TotalLength <= 2000f)
-            {
-                Dictionary<DamageType, float> topReferenceDict = TestType == TestType.DpsPerVolume ?
-                    Top2000.DpsPerVolumeDict : Top2000.DpsPerCostDict;
-                if (referenceDict[DamageType] > topReferenceDict[DamageType])
-                {
-                    Top2000 = shellUnderTesting;
-                }
-            }
-            else if (shellUnderTesting.TotalLength <= 3000f)
-            {
-                Dictionary<DamageType, float> topReferenceDict = TestType == TestType.DpsPerVolume ?
-                    Top3000.DpsPerVolumeDict : Top3000.DpsPerCostDict;
-                if (referenceDict[DamageType] > topReferenceDict[DamageType])
-                {
-                    Top3000 = shellUnderTesting;
-                }
-            }
-            else if (shellUnderTesting.TotalLength <= 4000f)
-            {
-                Dictionary<DamageType, float> topReferenceDict = TestType == TestType.DpsPerVolume ?
-                    Top4000.DpsPerVolumeDict : Top4000.DpsPerCostDict;
-                if (referenceDict[DamageType] > topReferenceDict[DamageType])
-                {
-                    Top4000 = shellUnderTesting;
-                }
-            }
-            else if (shellUnderTesting.TotalLength <= 5000f)
-            {
-                Dictionary<DamageType, float> topReferenceDict = TestType == TestType.DpsPerVolume ?
-                    Top5000.DpsPerVolumeDict : Top5000.DpsPerCostDict;
-                if (referenceDict[DamageType] > topReferenceDict[DamageType])
-                {
-                    Top5000 = shellUnderTesting;
-                }
-            }
-            else if (shellUnderTesting.TotalLength <= 6000f)
-            {
-                Dictionary<DamageType, float> topReferenceDict = TestType == TestType.DpsPerVolume ?
-                    Top6000.DpsPerVolumeDict : Top6000.DpsPerCostDict;
-                if (referenceDict[DamageType] > topReferenceDict[DamageType])
-                {
-                    Top6000 = shellUnderTesting;
-                }
-            }
-            else if (shellUnderTesting.TotalLength <= 7000f)
-            {
-                Dictionary<DamageType, float> topReferenceDict = TestType == TestType.DpsPerVolume ?
-                    Top7000.DpsPerVolumeDict : Top7000.DpsPerCostDict;
-                if (referenceDict[DamageType] > topReferenceDict[DamageType])
-                {
-                    Top7000 = shellUnderTesting;
-                }
-            }
-            else if (shellUnderTesting.TotalLength <= 8000f)
-            {
-                Dictionary<DamageType, float> topReferenceDict = TestType == TestType.DpsPerVolume ?
-                    Top8000.DpsPerVolumeDict : Top8000.DpsPerCostDict;
-                if (referenceDict[DamageType] > topReferenceDict[DamageType])
-                {
-                    Top8000 = shellUnderTesting;
-                }
-            }
-        }
-
-        static float ClampTo(float value, float min, float max)
-        {
-            if (min > max)
-            {
-                throw new ArgumentException("Min must be <= max", nameof(min));
-            }
-            else
-            {
-                return MathF.Max(MathF.Min(value, max), min);
-            }
-        }
-
-        /// <summary>
         /// Find DPS/Cost or DPS/Volume of given shell
         /// </summary>
         /// <param name="gpCount">GP casing count</param>
@@ -1012,6 +1143,7 @@ namespace ApsCalcUI
             shellUnderTesting.GetModuleCounts();
             shellUnderTesting.CalculateLengths();
             shellUnderTesting.CalculateVelocityModifier();
+            shellUnderTesting.CalculateDamageModifierByType(DamageType);
             shellUnderTesting.CalculateMaxDraw();
 
             // Physical draw limit
@@ -1028,12 +1160,13 @@ namespace ApsCalcUI
             {
                 maxDraw = MathF.Min(maxDraw, shellUnderTesting.CalculateMaxDrawForInaccuracy(MaxBarrelLengthInM, MaxInaccuracy, shellUnderTesting.MaxDrawCasing));
             }
-            float minDraw = shellUnderTesting.CalculateMinDrawForVelocityAndRange(MinVelocityInput, MinEffectiveRangeInput);
+            float minVelocity = MathF.Max(MinVelocityInput,
+                TargetArmorScheme.CalculateMinVelocityToPenetrate(shellUnderTesting, ImpactAngleFromPerpendicularDegrees));
+            float minDraw = shellUnderTesting.CalculateMinDrawForVelocityAndRange(minVelocity, MinEffectiveRangeInput);
 
             if (maxDraw >= minDraw)
             {
                 shellUnderTesting.CalculateReloadTime(TestIntervalSeconds);
-                shellUnderTesting.CalculateDamageModifierByType(DamageType);
                 shellUnderTesting.SabotAngleMultiplier = SabotAngleMultiplier;
                 shellUnderTesting.NonSabotAngleMultiplier = NonSabotAngleMultiplier;
                 shellUnderTesting.CalculateDamageByType(DamageType, FragAngleMultiplier);
@@ -1082,11 +1215,67 @@ namespace ApsCalcUI
             return (score, shellUnderTesting);
         }
 
+        /// <summary>
+        /// Scores a (gp, rg) point on an already-configured scratch shell, changing only casing counts.
+        /// Avoids creating new shells for every coördinate on (gp, rg) graph
+        /// </summary>
+        private float ScoreCasingsOnScratch(Shell shell, float gpCount, float rgCount, float minVelocity)
+        {
+            shell.GPCasingCount = gpCount;
+            shell.RGCasingCount = rgCount;
+
+            shell.CalculateLengths();
+            shell.CalculateMaxDraw();
+
+            float maxDraw = MathF.Min(shell.MaxDrawShell, MaxDrawInput);
+            float maxRailRecoil = MaxRecoilInput - shell.GPRecoil;
+            float maxCasingDrawForRecoil = MathF.Min(maxRailRecoil / shell.RGCasingFeltRecoilMultiplier, shell.MaxDrawCasing);
+            float maxCasingRecoil = maxCasingDrawForRecoil * shell.RGCasingFeltRecoilMultiplier;
+            float maxProjectileDrawForRecoil = maxRailRecoil - maxCasingRecoil;
+            maxDraw = MathF.Min(maxDraw, maxCasingDrawForRecoil + maxProjectileDrawForRecoil);
+            if (!shell.GunUsesRecoilAbsorbers)
+                maxDraw = MathF.Min(maxDraw, shell.CalculateMaxDrawForInaccuracy(MaxBarrelLengthInM, MaxInaccuracy, shell.MaxDrawCasing));
+
+            float minDraw = shell.CalculateMinDrawForVelocityAndRange(minVelocity, MinEffectiveRangeInput);
+            if (maxDraw < minDraw)
+                return 0f;
+
+            shell.CalculateReloadTime(TestIntervalSeconds);
+            shell.SabotAngleMultiplier = SabotAngleMultiplier;
+            shell.NonSabotAngleMultiplier = NonSabotAngleMultiplier;
+            shell.CalculateDamageByType(DamageType, FragAngleMultiplier);
+
+            if (MinDisruptor > 0 && DamageType != DamageType.Disruptor)
+            {
+                shell.CalculateDamageByType(DamageType.EMP, FragAngleMultiplier);
+                shell.CalculateDamageByType(DamageType.Disruptor, FragAngleMultiplier);
+            }
+            if (MinDisruptor != 0 && shell.DamageDict[DamageType.Disruptor] < MinDisruptor)
+                return 0f;
+
+            shell.CalculateCooldownTime();
+            shell.CalculateCoolerVolumeAndCost();
+            shell.CalculateLoaderVolumeAndCost();
+            shell.CalculateVariableVolumesAndCosts(TestIntervalSeconds, StoragePerVolume, StoragePerCost);
+
+            Dictionary<DamageType, float> referenceDict = TestType == TestType.DpsPerVolume
+                ? shell.DpsPerVolumeDict : shell.DpsPerCostDict;
+
+            shell.RailDraw = maxDraw > 0
+                ? CalculateOptimalRailDraw(shell, maxDraw, minDraw, referenceDict) : 0;
+            shell.CalculateVelocity();
+            shell.CalculateEffectiveRange();
+            shell.CalculateDpsByType(
+                DamageType, TargetAC, TestIntervalSeconds, StoragePerVolume, StoragePerCost,
+                EnginePpm, EnginePpv, EnginePpc, EngineUsesFuel, TargetArmorScheme,
+                ImpactAngleFromPerpendicularDegrees);
+
+            return referenceDict[DamageType];
+        }
 
         /// <summary>
         /// Given an RG increment, compute (min, max) GP-increment range that satisfies
-        /// bracket length and recoil constraints. Returns (0, -1) when range is empty,
-        /// which caller's for-loop will skip naturally.
+        /// bracket length and recoil constraints. Returns (0, -1) when range is empty
         /// </summary>
         internal static (int minGPInc, int maxGPInc) CalculateGPIncrementBounds(
             int rgInc,
@@ -1112,11 +1301,6 @@ namespace ApsCalcUI
             return ((int)MathF.Floor(minGP / gridSpacing), (int)MathF.Ceiling(maxGP / gridSpacing));
         }
 
-        /// <summary>
-        /// Coarse-grid search over (gp, rg) at given grid spacing. Returns set of grid
-        /// points that are at least as high as their four cardinal neighbors. Score function
-        /// is parameterized so tests can supply a synthetic scoring map.
-        /// </summary>
         internal static HashSet<Neighborhood> FindCoarsePeaks(
             int maxRGIncrementCount,
             float gridSpacing,
@@ -1125,6 +1309,18 @@ namespace ApsCalcUI
         {
             HashSet<Neighborhood> peaks = [];
 
+            // Each grid point is read as a center once and as a neighbor by up to four
+            // adjacent cells. Cache by integer coordinate so score() runs once per point.
+            Dictionary<(int gpInc, int rgInc), float> scoreCache = [];
+            float Scored(int gpInc, int rgInc)
+            {
+                if (scoreCache.TryGetValue((gpInc, rgInc), out float cached))
+                    return cached;
+                float computed = score(gpInc * gridSpacing, rgInc * gridSpacing);
+                scoreCache[(gpInc, rgInc)] = computed;
+                return computed;
+            }
+
             for (int rgInc = 0; rgInc <= maxRGIncrementCount; rgInc++)
             {
                 (int minGPInc, int maxGPInc) = gpRangeAtRG(rgInc);
@@ -1132,13 +1328,11 @@ namespace ApsCalcUI
                 {
                     float gp = gpInc * gridSpacing;
                     float rg = rgInc * gridSpacing;
-                    float centerScore = score(gp, rg);
+                    float centerScore = Scored(gpInc, rgInc);
 
                     bool hasLeft = gpInc > minGPInc;
                     bool hasRight = gpInc < maxGPInc;
 
-                    // Top/bottom neighbours exist only if current gpInc remains
-                    // inside per-row GP feasibility range at neighbour's rgInc.
                     bool hasBottom = false;
                     if (rgInc > 0)
                     {
@@ -1155,10 +1349,10 @@ namespace ApsCalcUI
 
                     bool isPeak =
                         centerScore > 0
-                     && (!hasLeft || score((gpInc - 1) * gridSpacing, rg) <= centerScore)
-                     && (!hasRight || score((gpInc + 1) * gridSpacing, rg) <= centerScore)
-                     && (!hasBottom || score(gp, (rgInc - 1) * gridSpacing) <= centerScore)
-                     && (!hasTop || score(gp, (rgInc + 1) * gridSpacing) <= centerScore);
+                     && (!hasLeft || Scored(gpInc - 1, rgInc) <= centerScore)
+                     && (!hasRight || Scored(gpInc + 1, rgInc) <= centerScore)
+                     && (!hasBottom || Scored(gpInc, rgInc - 1) <= centerScore)
+                     && (!hasTop || Scored(gpInc, rgInc + 1) <= centerScore);
 
                     if (isPeak)
                     {
@@ -1273,7 +1467,7 @@ namespace ApsCalcUI
 
                 float gridSpacing = MathF.Max(1f, CasingIncrement);
                 float fineSearchSpacing = CasingIncrement;
-                int maxRGIncrementCount = (int)MathF.Floor(MathF.Min(maxRGCasings, maxCasingCountForBracket) / gridSpacing);
+                int maxRGIncrementCount = (int)MathF.Ceiling(MathF.Min(maxRGCasings, maxCasingCountForBracket) / gridSpacing);
 
                 // Capture loop locals for lambdas so they bind cleanly
                 Module headForScoring = shellUnderTesting.HeadModule;
@@ -1297,8 +1491,11 @@ namespace ApsCalcUI
                     return (minGP, maxGP);
                 }
 
-                float scoreFunc(float gp, float rg) =>
-                    ShellTest2(headForScoring, varCountsForScoring, gp, rg, modConfig.Bracket).score;
+                shellUnderTesting.CalculateDamageModifierByType(DamageType);
+                float minVelocity = MathF.Max(MinVelocityInput,
+                    TargetArmorScheme.CalculateMinVelocityToPenetrate(shellUnderTesting, ImpactAngleFromPerpendicularDegrees));
+
+                float scoreFunc(float gp, float rg) => ScoreCasingsOnScratch(shellUnderTesting, gp, rg, minVelocity);
 
                 HashSet<Neighborhood> peaks = FindCoarsePeaks(maxRGIncrementCount, gridSpacing, coarseGPRange, scoreFunc);
 
@@ -1314,421 +1511,6 @@ namespace ApsCalcUI
                     {
                         Shell winner = ShellTest2(headForScoring, varCountsForScoring, gp, rg, modConfig.Bracket).shell;
                         TopShells[modConfig.Bracket] = winner;
-                    }
-                }
-            }
-        }
-
-        /// <summary>
-        /// Iterates over possible configurations and stores best according to test parameters
-        /// </summary>
-        public void ShellTest()
-        {
-            // Set up target armor scheme for testing
-            foreach (ModuleConfig modConfig in GenerateModConfigs())
-            {
-                Shell shellUnderTesting = new(
-                    BarrelCount,
-                    Gauge,
-                    GaugeMultiplier,
-                    false,
-                    Module.AllModules[modConfig.HeadIndex],
-                    BaseModule,
-                    RegularClipsPerLoader,
-                    RegularInputsPerLoader,
-                    BeltfedClipsPerLoader,
-                    BeltfedInputsPerLoader,
-                    UsesAmmoEjector,
-                    modConfig.GPCount,
-                    modConfig.RGCount,
-                    RateOfFireRpm,
-                    GunUsesRecoilAbsorbers,
-                    FiringPieceIsDif
-                    );
-                FixedModuleCounts.CopyTo(shellUnderTesting.BodyModuleCounts, 0);
-
-                // Add variable modules
-                for (int i = 0; i < modConfig.VariableModCounts.Length; i++)
-                {
-                    int moduleIndex = VariableModuleIndices[i];
-                    float moduleCount = modConfig.VariableModCounts[i];
-                    shellUnderTesting.BodyModuleCounts[moduleIndex] += moduleCount;
-                }
-
-                shellUnderTesting.CalculateLengths();
-                shellUnderTesting.CalculateRecoil();
-                bool lengthWithinBounds = true;
-                if (LimitBarrelLength
-                    && shellUnderTesting.ProjectileLength
-                        > shellUnderTesting.CalculateMaxProjectileLengthForInaccuracy(MaxBarrelLengthInM, MaxInaccuracy))
-                {
-                    lengthWithinBounds = false;
-                }
-                if (shellUnderTesting.TotalLength <= MinShellLength || shellUnderTesting.TotalLength > MaxShellLength)
-                {
-                    lengthWithinBounds = false;
-                }
-
-                if (lengthWithinBounds)
-                {
-                    shellUnderTesting.CalculateVelocityModifier();
-                    shellUnderTesting.CalculateMaxDraw();
-                    
-                    // Physical draw limit
-                    float maxDraw = MathF.Min(shellUnderTesting.MaxDrawShell, MaxDrawInput);
-                    // Limit by recoil. Projectile draw is 1 : 1 with recoil; draw applied to RG casings is affected by multiplier
-                    float maxRailRecoil = MaxRecoilInput - shellUnderTesting.GPRecoil;
-                    float maxCasingDrawForRecoil = MathF.Min(maxRailRecoil / shellUnderTesting.RGCasingFeltRecoilMultiplier, shellUnderTesting.MaxDrawCasing);
-                    float maxCasingRecoil = maxCasingDrawForRecoil * shellUnderTesting.RGCasingFeltRecoilMultiplier;
-                    float maxProjectileDrawForRecoil = maxRailRecoil - maxCasingRecoil;
-                    float maxDrawForRecoil = maxCasingDrawForRecoil + maxProjectileDrawForRecoil;
-                    maxDraw = MathF.Min(maxDraw, maxDrawForRecoil);
-                    // Limit by inaccuracy
-                    if (!shellUnderTesting.GunUsesRecoilAbsorbers)
-                    {
-                        maxDraw = MathF.Min(maxDraw, shellUnderTesting.CalculateMaxDrawForInaccuracy(MaxBarrelLengthInM, MaxInaccuracy, shellUnderTesting.MaxDrawCasing));
-                    }
-                    float minDraw = shellUnderTesting.CalculateMinDrawForVelocityAndRange(MinVelocityInput, MinEffectiveRangeInput);
-
-                    if (maxDraw >= minDraw)
-                    {
-                        shellUnderTesting.CalculateReloadTime(TestIntervalSeconds);
-                        shellUnderTesting.CalculateDamageModifierByType(DamageType);
-                        shellUnderTesting.SabotAngleMultiplier = SabotAngleMultiplier;
-                        shellUnderTesting.NonSabotAngleMultiplier = NonSabotAngleMultiplier;
-                        shellUnderTesting.CalculateDamageByType(DamageType, FragAngleMultiplier);
-
-                        // Users can enter minimum disruptor values even when optimizing for other damage types
-                        if (MinDisruptor > 0 && DamageType != DamageType.Disruptor)
-                        {
-                            shellUnderTesting.CalculateDamageByType(DamageType.EMP, FragAngleMultiplier);
-                            shellUnderTesting.CalculateDamageByType(DamageType.Disruptor, FragAngleMultiplier);
-                        }
-
-                        if ((shellUnderTesting.DamageDict[DamageType.Disruptor] >= MinDisruptor) || MinDisruptor == 0)
-                        {
-                            shellUnderTesting.CalculateCooldownTime();
-                            shellUnderTesting.CalculateCoolerVolumeAndCost();
-                            shellUnderTesting.CalculateLoaderVolumeAndCost();
-                            shellUnderTesting.CalculateVariableVolumesAndCosts(TestIntervalSeconds, StoragePerVolume, StoragePerCost);
-
-                            // Determine which "DPS Per" dictionary will be used for testing
-                            Dictionary<DamageType, float> referenceDict = TestType == TestType.DpsPerVolume ?
-                                shellUnderTesting.DpsPerVolumeDict : shellUnderTesting.DpsPerCostDict;
-                            // Determine optimal rail draw
-                            float optimalDraw = maxDraw > 0 ?
-                                CalculateOptimalRailDraw(shellUnderTesting, maxDraw, minDraw, referenceDict)
-                                : 0;
-                            shellUnderTesting.RailDraw = optimalDraw;
-                            CompareToTopShells(shellUnderTesting, referenceDict);
-
-                            // Beltfed testing
-                            if (shellUnderTesting.TotalLength <= 1000f && !FiringPieceIsDif)
-                            {
-                                Shell shellUnderTestingBelt = new(
-                                    BarrelCount,
-                                    Gauge,
-                                    GaugeMultiplier,
-                                    true,
-                                    Module.AllModules[modConfig.HeadIndex],
-                                    BaseModule,
-                                    RegularClipsPerLoader,
-                                    RegularInputsPerLoader,
-                                    BeltfedClipsPerLoader,
-                                    BeltfedInputsPerLoader,
-                                    UsesAmmoEjector,
-                                    modConfig.GPCount,
-                                    modConfig.RGCount,
-                                    RateOfFireRpm,
-                                    GunUsesRecoilAbsorbers,
-                                    FiringPieceIsDif);
-                                shellUnderTesting.BodyModuleCounts.CopyTo(shellUnderTestingBelt.BodyModuleCounts, 0);
-
-                                // Beltfed loaders cannot use ejectors
-                                int modIndex = 0;
-                                foreach (float modCount in shellUnderTestingBelt.BodyModuleCounts)
-                                {
-                                    if (Module.AllModules[modIndex] == Module.Defuse)
-                                    {
-                                        shellUnderTestingBelt.BodyModuleCounts[modIndex] = 0f;
-                                        break;
-                                    }
-                                    else
-                                    {
-                                        modIndex++;
-                                    }
-                                }
-                                shellUnderTestingBelt.CalculateLengths();
-                                shellUnderTestingBelt.GetModuleCounts();
-                                shellUnderTestingBelt.CalculateRequiredBarrelLengths(MaxInaccuracy);
-                                shellUnderTestingBelt.CalculateVelocityModifier();
-                                shellUnderTestingBelt.CalculateRecoil();
-                                shellUnderTestingBelt.CalculateMaxDraw();
-                                shellUnderTestingBelt.CalculateReloadTime(TestIntervalSeconds);
-                                shellUnderTestingBelt.CalculateVariableVolumesAndCosts(
-                                    TestIntervalSeconds,
-                                    StoragePerVolume,
-                                    StoragePerCost);
-                                shellUnderTestingBelt.CalculateCooldownTime();
-                                shellUnderTestingBelt.CalculateDamageModifierByType(DamageType);
-                                shellUnderTestingBelt.SabotAngleMultiplier = SabotAngleMultiplier;
-                                shellUnderTestingBelt.NonSabotAngleMultiplier = NonSabotAngleMultiplier;
-                                shellUnderTestingBelt.CalculateDamageByType(DamageType, FragAngleMultiplier);
-                                shellUnderTestingBelt.CalculateLoaderVolumeAndCost();
-                                shellUnderTestingBelt.CalculateCoolerVolumeAndCost();
-
-                                // Binary search to find optimal draw without testing every value
-                                // Determine which "DPS Per" dictionary will be used for testing
-                                Dictionary<DamageType, float> referenceDictBelt = TestType == TestType.DpsPerVolume ?
-                                    shellUnderTestingBelt.DpsPerVolumeDict : shellUnderTestingBelt.DpsPerCostDict;
-                                optimalDraw = maxDraw > 0 ?
-                                    CalculateOptimalRailDraw(shellUnderTestingBelt, maxDraw, minDraw, referenceDictBelt)
-                                    : 0;
-
-                                // Check performance against top shell
-                                shellUnderTestingBelt.RailDraw = optimalDraw;
-                                shellUnderTestingBelt.CalculateVelocity();
-                                shellUnderTestingBelt.CalculateEffectiveRange();
-                                shellUnderTestingBelt.CalculateDpsByType(
-                                    DamageType,
-                                    TargetAC,
-                                    TestIntervalSeconds,
-                                    StoragePerVolume,
-                                    StoragePerCost,
-                                    EnginePpm,
-                                    EnginePpv,
-                                    EnginePpc,
-                                    EngineUsesFuel,
-                                    TargetArmorScheme,
-                                    ImpactAngleFromPerpendicularDegrees);
-
-                                Dictionary<DamageType, float> topReferenceDictBelt = TestType == TestType.DpsPerVolume ?
-                                    TopBelt.DpsPerVolumeDict : TopBelt.DpsPerCostDict;
-                                if (referenceDictBelt[DamageType] > topReferenceDictBelt[DamageType])
-                                {
-                                    TopBelt = shellUnderTestingBelt;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        /// <summary>
-        /// Adds current top-performing shells to TopShells list for comparison with other lists
-        /// Note that DPS is used only to determine whether a shell has been assigned to a particular length slot
-        /// </summary>
-        public void AddTopShellsToLocalList()
-        {
-            if (TopBelt.DpsDict[DamageType] > 0)
-            {
-                TopShellsLocal.Add(TopBelt);
-            }
-
-            if (Top1000.DpsDict[DamageType] > 0)
-            {
-                TopShellsLocal.Add(Top1000);
-            }
-
-            if (Top2000.DpsDict[DamageType] > 0)
-            {
-                TopShellsLocal.Add(Top2000);
-            }
-
-            if (Top3000.DpsDict[DamageType] > 0)
-            {
-                TopShellsLocal.Add(Top3000);
-            }
-
-            if (Top4000.DpsDict[DamageType] > 0)
-            {
-                TopShellsLocal.Add(Top4000);
-            }
-
-            if (Top5000.DpsDict[DamageType] > 0)
-            {
-                TopShellsLocal.Add(Top5000);
-            }
-
-            if (Top6000.DpsDict[DamageType] > 0)
-            {
-                TopShellsLocal.Add(Top6000);
-            }
-
-            if (Top7000.DpsDict[DamageType] > 0)
-            {
-                TopShellsLocal.Add(Top7000);
-            }
-
-            if (Top8000.DpsDict[DamageType] > 0)
-            {
-                TopShellsLocal.Add(Top8000);
-            }
-
-            if (TopDif.DpsDict[DamageType] > 0)
-            {
-                TopShellsLocal.Add(TopDif);
-            }
-        }
-
-
-        /// <summary>
-        /// Adds current top-performing shells to TopShells dictionary for writing to file
-        /// Note that DPS is used only to determine whether a shell has been assigned to a length slot
-        /// </summary>
-        public void AddTopShellsToDictionary()
-        {
-            if (TopBelt.DpsDict[DamageType] > 0)
-            {
-                TopDpsShells.Add("1m (belt)", TopBelt);
-            }
-
-            if (Top1000.DpsDict[DamageType] > 0)
-            {
-                TopDpsShells.Add("1m", Top1000);
-            }
-
-            if (Top2000.DpsDict[DamageType] > 0)
-            {
-                TopDpsShells.Add("2m", Top2000);
-            }
-
-            if (Top3000.DpsDict[DamageType] > 0)
-            {
-                TopDpsShells.Add("3m", Top3000);
-            }
-
-            if (Top4000.DpsDict[DamageType] > 0)
-            {
-                TopDpsShells.Add("4m", Top4000);
-            }
-
-            if (Top5000.DpsDict[DamageType] > 0)
-            {
-                TopDpsShells.Add("5m", Top5000);
-            }
-
-            if (Top6000.DpsDict[DamageType] > 0)
-            {
-                TopDpsShells.Add("6m", Top6000);
-            }
-
-            if (Top7000.DpsDict[DamageType] > 0)
-            {
-                TopDpsShells.Add("7m", Top7000);
-            }
-
-            if (Top8000.DpsDict[DamageType] > 0)
-            {
-                TopDpsShells.Add("8m", Top8000);
-            }
-
-            if (TopDif.DpsDict[DamageType] > 0)
-            {
-                TopDpsShells.Add("DIF", TopDif);
-            }
-        }
-
-
-        /// <summary>
-        /// Finds top shells in given list.  Used in multithreading.
-        /// </summary>
-        /// <param name="shellBag"></param>
-        public void FindTopShellsInList(ConcurrentBag<Shell> shellBag)
-        {
-            foreach (Shell rawShell in shellBag)
-            {
-                Dictionary<DamageType, float> referenceDict = TestType == TestType.DpsPerVolume ?
-                    rawShell.DpsPerVolumeDict : rawShell.DpsPerCostDict;
-                if (FiringPieceIsDif)
-                {
-                    Dictionary<DamageType, float> topReferenceDict = TestType == TestType.DpsPerVolume ?
-                        TopDif.DpsPerVolumeDict : TopDif.DpsPerCostDict;
-                    if (referenceDict[DamageType] > topReferenceDict[DamageType])
-                    {
-                        TopDif = rawShell;
-                    }
-                }
-                else if (rawShell.IsBelt)
-                {
-                    Dictionary<DamageType, float> topReferenceDict = TestType == TestType.DpsPerVolume ?
-                        TopBelt.DpsPerVolumeDict : TopBelt.DpsPerCostDict;
-                    if (referenceDict[DamageType] > topReferenceDict[DamageType])
-                    {
-                        TopBelt = rawShell;
-                    }
-                }
-                else if (rawShell.TotalLength <= 1_000f)
-                {
-                    Dictionary<DamageType, float> topReferenceDict = TestType == TestType.DpsPerVolume ?
-                        Top1000.DpsPerVolumeDict : Top1000.DpsPerCostDict;
-                    if (referenceDict[DamageType] > topReferenceDict[DamageType])
-                    {
-                        Top1000 = rawShell;
-                    }
-                }
-                else if (rawShell.TotalLength <= 2_000f)
-                {
-                    Dictionary<DamageType, float> topReferenceDict = TestType == TestType.DpsPerVolume ?
-                        Top2000.DpsPerVolumeDict : Top2000.DpsPerCostDict;
-                    if (referenceDict[DamageType] > topReferenceDict[DamageType])
-                    {
-                        Top2000 = rawShell;
-                    }
-                }
-                else if (rawShell.TotalLength <= 3_000f)
-                {
-                    Dictionary<DamageType, float> topReferenceDict = TestType == TestType.DpsPerVolume ?
-                        Top3000.DpsPerVolumeDict : Top3000.DpsPerCostDict;
-                    if (referenceDict[DamageType] > topReferenceDict[DamageType])
-                    {
-                        Top3000 = rawShell;
-                    }
-                }
-                else if (rawShell.TotalLength <= 4_000f)
-                {
-                    Dictionary<DamageType, float> topReferenceDict = TestType == TestType.DpsPerVolume ?
-                        Top4000.DpsPerVolumeDict : Top4000.DpsPerCostDict;
-                    if (referenceDict[DamageType] > topReferenceDict[DamageType])
-                    {
-                        Top4000 = rawShell;
-                    }
-                }
-                else if (rawShell.TotalLength <= 5_000f)
-                {
-                    Dictionary<DamageType, float> topReferenceDict = TestType == TestType.DpsPerVolume ?
-                        Top5000.DpsPerVolumeDict : Top5000.DpsPerCostDict;
-                    if (referenceDict[DamageType] > topReferenceDict[DamageType])
-                    {
-                        Top5000 = rawShell;
-                    }
-                }
-                else if (rawShell.TotalLength <= 6_000f)
-                {
-                    Dictionary<DamageType, float> topReferenceDict = TestType == TestType.DpsPerVolume ?
-                        Top6000.DpsPerVolumeDict : Top6000.DpsPerCostDict;
-                    if (referenceDict[DamageType] > topReferenceDict[DamageType])
-                    {
-                        Top6000 = rawShell;
-                    }
-                }
-                else if (rawShell.TotalLength <= 7_000f)
-                {
-                    Dictionary<DamageType, float> topReferenceDict = TestType == TestType.DpsPerVolume ?
-                        Top7000.DpsPerVolumeDict : Top7000.DpsPerCostDict;
-                    if (referenceDict[DamageType] > topReferenceDict[DamageType])
-                    {
-                        Top7000 = rawShell;
-                    }
-                }
-                else if (rawShell.TotalLength <= 8_000f)
-                {
-                    Dictionary<DamageType, float> topReferenceDict = TestType == TestType.DpsPerVolume ?
-                        Top8000.DpsPerVolumeDict : Top8000.DpsPerCostDict;
-                    if (referenceDict[DamageType] > topReferenceDict[DamageType])
-                    {
-                        Top8000 = rawShell;
                     }
                 }
             }
@@ -1755,7 +1537,7 @@ namespace ApsCalcUI
         /// <summary>
         /// Write top shell information
         /// </summary>
-        public void WriteTopShells(float minGauge, float maxGauge, TimeSpan ts)
+        public void WriteTopShells(float minGauge, float maxGauge, TimeSpan ts, bool useBruteForce)
         {
             bool showGP = MaxGPInput > 0;
 
@@ -1848,7 +1630,7 @@ namespace ApsCalcUI
                 }
             }
 
-            WriteTopShellsToFile(minGauge, maxGauge, showGP, showRG, showDraw, dtToShow, modsToShow, ts);
+            WriteTopShellsToFile(minGauge, maxGauge, showGP, showRG, showDraw, dtToShow, modsToShow, ts, useBruteForce);
         }
 
 
@@ -1863,7 +1645,8 @@ namespace ApsCalcUI
             bool showDraw,
             Dictionary<DamageType, bool> dtToShow,
             List<int> modsToShow,
-            TimeSpan ts)
+            TimeSpan ts,
+            bool useBruteForce)
 
         {
             // Create filename from current time
@@ -2051,6 +1834,12 @@ namespace ApsCalcUI
             {
                 writer.WriteLine("Rounding numbers to match values shown ingame");
             }
+
+            if (useBruteForce)
+            {
+                writer.WriteLine("Using brute force to test all possible shells");
+            }
+
             writer.WriteLine($"Test completed in {ts}");
             writer.WriteLine();
 

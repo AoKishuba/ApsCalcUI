@@ -57,6 +57,7 @@ namespace ApsCalcUI
         public bool VerboseOutputIsChecked;
         public bool RawNumberOutputIsChecked;
         public char ColumnDelimiter;
+        public bool UseBruteForce;
     }
 
     static class Program
