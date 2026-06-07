@@ -261,7 +261,6 @@ Below that are the top shells for each loader length for which any shells
 were generated (depending on length and gauge restrictions).
 Each shell stat cluster starts with the shell length.
 
-Shells: basic stats quick reference
 Gauge (mm): shell diameter; caliber.
 
 Total length (mm): length of the entire shell. Used to determine loader size.
@@ -280,19 +279,17 @@ RG casings.
 
 Rail draw: rail draw, if any.
 
+Total Recoil: power applied to the projectile, equal to rail draw + recoil from GP
+
+Felt Recoil: recoil applied to the craft and used for inaccuracy calculations.
+Equal to Total Recoil if no RG casings are used; otherwise will be lower.
+
 Solid body/Sabot body/HE body/&c: number of each type of body module.
 
 Head: the module at the head of the shell (at the bottom of the controller).
 
 DPS per cost/DPS per volume: the most important stats, shell damage per second
 divided by total cost (and volume) for the duration of the test interval.
-
-Shell Stats: more detailed stats for verifying configurations (and for debugging)
-
-Total Recoil: power applied to the projectile, equal to rail draw + recoil from GP
-
-Felt Recoil: recoil applied to the craft and used for inaccuracy calculations.
-Equal to Total Recoil if no RG casings are used; otherwise will be lower.
 
 Velocity modifier: multiplier determined by head module and presence of fins
 or base bleeder.
@@ -331,10 +328,13 @@ Shell reload time: Base reload time, as shown in ammo customizer.
 Cluster reload time: Effective reload time, as shown on loader.
 
 Uptime: Percent of the time during which the loader will be providing shells 
-to the firing piece.
+to the firing piece. 100% for all non-beltfed autoloaders.
 
 DPS: Damage per Second.
 
+DPS per Volume: DPS divided by total volume (see below).
+
+DPS per Cost: DPS divided by total cost (see below).
 
 Volumes and Costs (only shown if "Verbose Output" is checked)
 The various volumes and costs shown are the hypothetical amounts of each
