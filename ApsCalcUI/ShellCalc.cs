@@ -244,28 +244,6 @@ namespace ApsCalcUI
                     new LoaderBracket(6000, 7000, LoaderType.Regular),
                     new LoaderBracket(7000, 8000, LoaderType.Regular),
                 ];
-            TopShells = [];
-            foreach(LoaderBracket bracket in LoaderBrackets)
-            {
-                TopShells.Add(bracket, new(
-                    default,
-                    default,
-                    default,
-                    default,
-                    default,
-                    default,
-                    default,
-                    default,
-                    default,
-                    default,
-                    default,
-                    default,
-                    default,
-                    default,
-                    default,
-                    default
-                    ));
-            }
         }
 
         public int BarrelCount { get; }
@@ -1000,6 +978,101 @@ namespace ApsCalcUI
         }
 
         /// <summary>
+        /// Runs optimized algorithms to determine optimal draw depending on damage type
+        /// </summary>
+        /// <param name="shellUnderTesting">Shell being tested (normal or belt)</param>
+        float CalculateOptimalRailDraw2(Shell shellUnderTesting,
+            float maxDraw,
+            float minDraw,
+            Dictionary<DamageType, float> referenceDict)
+        {
+            if (DamageType != DamageType.Kinetic)
+            {
+                return MathF.Min(maxDraw, MathF.Ceiling(minDraw));
+            }
+
+            // Shortcut impossible requirement
+            shellUnderTesting.RailDraw = maxDraw;
+            shellUnderTesting.CalculateDpsByType(
+                DamageType,
+                TargetAC,
+                TestIntervalSeconds,
+                StoragePerVolume,
+                StoragePerCost,
+                EnginePpm,
+                EnginePpv,
+                EnginePpc,
+                EngineUsesFuel,
+                TargetArmorScheme,
+                ImpactAngleFromPerpendicularDegrees);
+            if (referenceDict[DamageType] == 0)
+            {
+                return 0;
+            }
+
+            // Binary gradient ascent to find optimal draw without testing every value
+            float optimalDraw = maxDraw;
+            float midRange;
+            float midRangeScore;
+            float midRangePlus;
+            float midRangePlusScore;
+            float topOfRange = maxDraw;
+            float bottomOfRange = minDraw;
+
+            while (bottomOfRange + 1 < topOfRange)
+            {
+                midRange = MathF.Floor((topOfRange + bottomOfRange) / 2f);
+                midRangePlus = midRange + 1;
+
+                shellUnderTesting.RailDraw = midRange;
+                shellUnderTesting.CalculateDpsByType(
+                    DamageType,
+                    TargetAC,
+                    TestIntervalSeconds,
+                    StoragePerVolume,
+                    StoragePerCost,
+                    EnginePpm,
+                    EnginePpv,
+                    EnginePpc,
+                    EngineUsesFuel,
+                    TargetArmorScheme,
+                    ImpactAngleFromPerpendicularDegrees);
+                midRangeScore = referenceDict[DamageType];
+
+                shellUnderTesting.RailDraw = midRangePlus;
+                shellUnderTesting.CalculateDpsByType(
+                    DamageType,
+                    TargetAC,
+                    TestIntervalSeconds,
+                    StoragePerVolume,
+                    StoragePerCost,
+                    EnginePpm,
+                    EnginePpv,
+                    EnginePpc,
+                    EngineUsesFuel,
+                    TargetArmorScheme,
+                    ImpactAngleFromPerpendicularDegrees);
+                midRangePlusScore = referenceDict[DamageType];
+
+                if (midRangePlusScore == 0)
+                {
+                    bottomOfRange = midRangePlus;
+                }
+                else if (midRangeScore >= midRangePlusScore)
+                {
+                    topOfRange = midRange;
+                    optimalDraw = midRange;
+                }
+                else
+                {
+                    bottomOfRange = midRangePlus;
+                    optimalDraw = midRangePlus;
+                }
+            }
+            return optimalDraw;
+        }
+
+        /// <summary>
         /// Runs nested binary search algorithm on rail draw to determine optimum for a given GP count
         /// </summary>
         /// <param name="shellUnderTesting">Shell being tested (normal or belt)</param>
@@ -1191,7 +1264,7 @@ namespace ApsCalcUI
 
                     // Determine optimal rail draw
                     float optimalDraw = maxDraw > 0 ?
-                        CalculateOptimalRailDraw(shellUnderTesting, maxDraw, minDraw, referenceDict)
+                        CalculateOptimalRailDraw2(shellUnderTesting, maxDraw, minDraw, referenceDict)
                         : 0;
                     shellUnderTesting.RailDraw = optimalDraw;
                     shellUnderTesting.CalculateVelocity();
@@ -1262,7 +1335,7 @@ namespace ApsCalcUI
                 ? shell.DpsPerVolumeDict : shell.DpsPerCostDict;
 
             shell.RailDraw = maxDraw > 0
-                ? CalculateOptimalRailDraw(shell, maxDraw, minDraw, referenceDict) : 0;
+                ? CalculateOptimalRailDraw2(shell, maxDraw, minDraw, referenceDict) : 0;
             shell.CalculateVelocity();
             shell.CalculateEffectiveRange();
             shell.CalculateDpsByType(
@@ -1982,6 +2055,30 @@ namespace ApsCalcUI
                     writer.WriteLine(string.Join(ColumnDelimiter, railDrawList));
                 }
 
+                List<string> totalRecoilList =
+                    [
+                    "Total Recoil"
+                    ];
+                foreach (Shell topShell in TopDpsShells.Values)
+                {
+                    AddValueToList(totalRecoilList, topShell.TotalRecoil, 0);
+                }
+                writer.WriteLine(string.Join(ColumnDelimiter, totalRecoilList));
+
+                // RG casings enjoy a reduction in felt recoil from rail draw
+                if (MaxRGInput > 0)
+                {
+                    List<string> feltRecoilList =
+                    [
+                        "Felt Recoil"
+                    ];
+                    foreach (Shell topShell in TopDpsShells.Values)
+                    {
+                        AddValueToList(feltRecoilList, topShell.FeltRecoil, 0);
+                    }
+                    writer.WriteLine(string.Join(ColumnDelimiter, feltRecoilList));
+                }
+
                 foreach (int index in modsToShow)
                 {
                     List<string> modCountList =
@@ -2005,63 +2102,10 @@ namespace ApsCalcUI
                 }
                 writer.WriteLine(string.Join(ColumnDelimiter, headList));
 
-                foreach (DamageType dt in dtToShow.Keys)
-                {
-                    if (dtToShow[dt])
-                    {
-                        List<string> dpsPerVolumeList =
-                        [
-                            (DamageType)(int)dt + " DPS per volume"
-                        ];
-                        foreach (Shell topShell in TopDpsShells.Values)
-                        {
-                            dpsPerVolumeList.Add(topShell.DpsPerVolumeDict[dt].ToString());
-                        }
-                        writer.WriteLine(string.Join(ColumnDelimiter, dpsPerVolumeList));
-
-                        List<string> dpsPerCostList =
-                        [
-                            (DamageType)(int)dt + " DPS per cost"
-                        ];
-                        foreach (Shell topShell in TopDpsShells.Values)
-                        {
-                            dpsPerCostList.Add(topShell.DpsPerCostDict[dt].ToString());
-                        }
-                        writer.WriteLine(string.Join(ColumnDelimiter, dpsPerCostList));
-                    }
-                }
-
-                writer.WriteLine();
-                writer.WriteLine("Shell Stats");
-                List<string> totalRecoilList =
-                [
-                    "Total Recoil"
-                ];
-                foreach (Shell topShell in TopDpsShells.Values)
-                {
-                    AddValueToList(totalRecoilList, topShell.TotalRecoil, 0);
-                }
-                writer.WriteLine(string.Join(ColumnDelimiter, totalRecoilList));
-
-                // RG casings enjoy a reduction in felt recoil from rail draw
-                if (MaxRGInput > 0)
-                {
-                    List<string> feltRecoilList =
-                    [
-                        "Felt Recoil"
-                    ];
-                    foreach (Shell topShell in TopDpsShells.Values)
-                    {
-                        AddValueToList(feltRecoilList, topShell.FeltRecoil, 0);
-                    }
-                    writer.WriteLine(string.Join(ColumnDelimiter, feltRecoilList));
-                }
-
-
                 List<string> velocityModifierList =
-                [
+                    [
                     "Velocity modifier"
-                ];
+                    ];
                 foreach (Shell topShell in TopDpsShells.Values)
                 {
                     AddValueToList(velocityModifierList, topShell.OverallVelocityModifier, 2);
@@ -2069,9 +2113,9 @@ namespace ApsCalcUI
                 writer.WriteLine(string.Join(ColumnDelimiter, velocityModifierList));
 
                 List<string> velocityList =
-                [
+                    [
                     "Velocity (m/s)"
-                ];
+                    ];
                 foreach (Shell topShell in TopDpsShells.Values)
                 {
                     AddValueToList(velocityList, topShell.Velocity, 0);
@@ -2079,9 +2123,9 @@ namespace ApsCalcUI
                 writer.WriteLine(string.Join(ColumnDelimiter, velocityList));
 
                 List<string> effectiveRangeList =
-                [
+                    [
                     "Effective range (m)"
-                ];
+                    ];
                 foreach (Shell topShell in TopDpsShells.Values)
                 {
                     AddValueToList(effectiveRangeList, topShell.EffectiveRange, 0);
@@ -2089,9 +2133,9 @@ namespace ApsCalcUI
                 writer.WriteLine(string.Join(ColumnDelimiter, effectiveRangeList));
 
                 List<string> inaccuracyModifierList =
-                [
+                    [
                     "Inaccuracy modifier"
-                ];
+                    ];
                 foreach (Shell topShell in TopDpsShells.Values)
                 {
                     AddValueToList(inaccuracyModifierList, topShell.OverallInaccuracyModifier, 0, true);
@@ -2099,9 +2143,9 @@ namespace ApsCalcUI
                 writer.WriteLine(string.Join(ColumnDelimiter, inaccuracyModifierList));
 
                 List<string> barrelLengthInaccuracyList =
-                [
+                    [
                     "Barrel length for inaccuracy (m)"
-                ];
+                    ];
                 foreach (Shell topShell in TopDpsShells.Values)
                 {
                     AddValueToList(barrelLengthInaccuracyList, topShell.BarrelLengthForInaccuracy, 1);
@@ -2292,9 +2336,9 @@ namespace ApsCalcUI
                 }
 
                 List<string> uptimeList =
-                [
+                    [
                     "Uptime"
-                ];
+                    ];
                 foreach (Shell topShell in TopDpsShells.Values)
                 {
                     AddValueToList(uptimeList, topShell.Uptime, 0, true);
@@ -2314,6 +2358,32 @@ namespace ApsCalcUI
                             dpsList.Add(topShell.DpsDict[dt].ToString());
                         }
                         writer.WriteLine(string.Join(ColumnDelimiter, dpsList));
+                    }
+                }
+
+                foreach (DamageType dt in dtToShow.Keys)
+                {
+                    if (dtToShow[dt])
+                    {
+                        List<string> dpsPerVolumeList =
+                        [
+                            (DamageType)(int)dt + " DPS per volume"
+                        ];
+                        foreach (Shell topShell in TopDpsShells.Values)
+                        {
+                            dpsPerVolumeList.Add(topShell.DpsPerVolumeDict[dt].ToString());
+                        }
+                        writer.WriteLine(string.Join(ColumnDelimiter, dpsPerVolumeList));
+
+                        List<string> dpsPerCostList =
+                        [
+                            (DamageType)(int)dt + " DPS per cost"
+                        ];
+                        foreach (Shell topShell in TopDpsShells.Values)
+                        {
+                            dpsPerCostList.Add(topShell.DpsPerCostDict[dt].ToString());
+                        }
+                        writer.WriteLine(string.Join(ColumnDelimiter, dpsPerCostList));
                     }
                 }
 
