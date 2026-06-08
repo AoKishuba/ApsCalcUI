@@ -997,7 +997,7 @@ namespace ApsCalcUI
                             Dictionary<LoaderBracket, Shell> finalShells = [];
                             object mergeLock = new();
 
-                            // Capture the scoring criteria once for use inside the parallel section
+                            // Capture scoring criteria for use inside parallel section
                             DamageType damageType = testParameters.DamageType;
                             TestType testType = testParameters.TestType;
 
@@ -1050,21 +1050,12 @@ namespace ApsCalcUI
                                     }
                                 });
 
-                            // Build the output host. Gauge values don't matter — WriteTopShells reads only
-                            // TopDpsShells, which is populated below from finalShells.
+                            // Build output host. Gauge values don't matter; WriteTopShells
+                            // reads only TopShells, populated below from merged finalShells.
                             ShellCalc calcFinal = MakeShellCalc(0, 0);
-
-                            // Temporary bridge from new dictionary to the string-keyed dictionary the
-                            // existing writer reads. Will be unnecessary once ShellWriter consumes
-                            // TopShells directly. Iterate calcFinal.LoaderBrackets so column order
-                            // remains deterministic.
-                            foreach (LoaderBracket bracket in calcFinal.LoaderBrackets)
+                            foreach (var (bracket, winner) in finalShells)
                             {
-                                if (finalShells.TryGetValue(bracket, out Shell winner)
-                                    && winner.DpsDict[damageType] > 0)
-                                {
-                                    calcFinal.TopDpsShells[bracket.DisplayName] = winner;
-                                }
+                                calcFinal.TopShells[bracket] = winner;
                             }
 
                             stopwatch.Stop();

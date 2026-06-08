@@ -25,9 +25,9 @@ namespace ApsCalcUI
     {
         public string DisplayName => LoaderType switch
         {
-            LoaderType.Dif      => "DIF",
-            LoaderType.Belt     => $"{MaxLengthMMInclusive / 1000f:0}m (belt)",
-            LoaderType.Regular  => $"{MaxLengthMMInclusive / 1000f:0}m",
+            LoaderType.Dif => "DIF",
+            LoaderType.Belt => $"{MaxLengthMMInclusive / 1000f:0}m (belt)",
+            LoaderType.Regular => $"{MaxLengthMMInclusive / 1000f:0}m",
             _ => throw new InvalidOperationException()
         };
     }
@@ -232,7 +232,7 @@ namespace ApsCalcUI
             VerboseOutputIsChecked = verboseOutputIsChecked;
             RawNumberOutputIsChecked = rawNumberOutputIsChecked;
             ColumnDelimiter = columnDelimiter;
-            LoaderBrackets = firingPieceIsDif ? [ new LoaderBracket(0, float.MaxValue, LoaderType.Dif) ]
+            LoaderBrackets = firingPieceIsDif ? [new LoaderBracket(0, float.MaxValue, LoaderType.Dif)]
                 : [
                     new LoaderBracket(0, 1000, LoaderType.Belt),
                     new LoaderBracket(0, 1000, LoaderType.Regular),
@@ -244,6 +244,10 @@ namespace ApsCalcUI
                     new LoaderBracket(6000, 7000, LoaderType.Regular),
                     new LoaderBracket(7000, 8000, LoaderType.Regular),
                 ];
+
+            // Per-bracket best shells, populated lazily as search finds feasible
+            // candidates. A bracket key is absent until a shell is recorded for it.
+            TopShells = [];
         }
 
         public int BarrelCount { get; }
@@ -303,7 +307,6 @@ namespace ApsCalcUI
         // Store top-DPS shells by loader length
         public LoaderBracket[] LoaderBrackets { get; }
         public Dictionary<LoaderBracket, Shell> TopShells { get; }
-        public Dictionary<string, Shell> TopDpsShells { get; set; } = [];
 
         private IEnumerable<ModuleConfig> GenerateModConfigs()
         {
@@ -625,9 +628,13 @@ namespace ApsCalcUI
 
                                     if (TryGetBracket(shellUnderTestingBelt.TotalLength, LoaderType.Belt, out LoaderBracket beltBracket))
                                     {
-                                        Dictionary<DamageType, float> topReferenceDictBelt = TestType == TestType.DpsPerVolume ?
-                                            TopShells[beltBracket].DpsPerVolumeDict : TopShells[beltBracket].DpsPerCostDict;
-                                        if (referenceDictBelt[DamageType] > topReferenceDictBelt[DamageType])
+                                        // No incumbent yet for this bracket => any feasible shell wins.
+                                        float incumbentScoreBelt = TopShells.TryGetValue(beltBracket, out Shell incumbentBelt)
+                                            ? (TestType == TestType.DpsPerVolume
+                                                ? incumbentBelt.DpsPerVolumeDict[DamageType]
+                                                : incumbentBelt.DpsPerCostDict[DamageType])
+                                            : float.NegativeInfinity;
+                                        if (referenceDictBelt[DamageType] > incumbentScoreBelt)
                                         {
                                             TopShells[beltBracket] = shellUnderTestingBelt;
                                         }
@@ -660,9 +667,8 @@ namespace ApsCalcUI
         }
 
         /// <summary>
-        /// Brute-force result sink. Re-evaluates shell at its chosen draw, maps it to its loader
-        /// bracket by total length, and records it in TopShells if it beats incumbent. Mirrors
-        /// per-bracket bookkeeping BigTest performs so both paths populate TopShells identically.
+        /// Result sink for brute-force path. Re-evaluates shell at its chosen draw, maps it to its loader
+        /// bracket by total length, and records it in TopShells if it beats incumbent.
         /// </summary>
         void CompareToTopShells(Shell shellUnderTesting, Dictionary<DamageType, float> referenceDict)
         {
@@ -684,13 +690,15 @@ namespace ApsCalcUI
             LoaderType loaderType = FiringPieceIsDif ? LoaderType.Dif : LoaderType.Regular;
             if (!TryGetBracket(shellUnderTesting.TotalLength, loaderType, out LoaderBracket bracket))
             {
-                return; // length outside any tracked bracket (i.e. > 8000 mm if not DIF)
+                return; // length outside any tracked bracket
             }
 
-            Dictionary<DamageType, float> topReferenceDict = TestType == TestType.DpsPerVolume
-                ? TopShells[bracket].DpsPerVolumeDict
-                : TopShells[bracket].DpsPerCostDict;
-            if (referenceDict[DamageType] > topReferenceDict[DamageType])
+            float incumbentScore = TopShells.TryGetValue(bracket, out Shell incumbent)
+                ? (TestType == TestType.DpsPerVolume
+                    ? incumbent.DpsPerVolumeDict[DamageType]
+                    : incumbent.DpsPerCostDict[DamageType])
+                : float.NegativeInfinity;
+            if (referenceDict[DamageType] > incumbentScore)
             {
                 TopShells[bracket] = shellUnderTesting;
             }
@@ -800,9 +808,7 @@ namespace ApsCalcUI
             }
 
             // Deduplicate variable module indices
-            // This could be removed after migrating to new projectile generation method
-            // (and removing VariableModuleIndices padding in ParameterInput, which was only there
-            // for non-recursive old method)
+            // This can be removed if old brute-force module config generation is ever removed
             bool duplicateOfEarlierSlot = false;
             for (int prior = 0; prior < depth; prior++)
             {
@@ -953,7 +959,7 @@ namespace ApsCalcUI
             float minVelocity = MathF.Max(MinVelocityInput, TargetArmorScheme.CalculateMinVelocityToPenetrate(shellUnderTesting, ImpactAngleFromPerpendicularDegrees));
             float minTotalRecoil = shellUnderTesting.CalculateMinRecoilForVelocityAndRange(minVelocity, MinEffectiveRangeInput);
             float maxFeltRecoil = GunUsesRecoilAbsorbers ?
-                MaxRecoilInput                
+                MaxRecoilInput
                 : MathF.Min(MaxRecoilInput, shellUnderTesting.CalculateMaxFeltRecoilForInaccuracy(MaxBarrelLengthInM, MaxInaccuracy));
 
             float slotBudget = 20f - shellUnderTesting.ModuleCountTotal
@@ -1175,7 +1181,7 @@ namespace ApsCalcUI
         /// <returns>DPS per Cost or DPS per Volume, depending on test type</returns>
         (float score, Shell shell) ShellTest2(
             Module head,
-            float[] variableModCounts, 
+            float[] variableModCounts,
             float gpCount,
             float rgCount,
             LoaderBracket bracket)
@@ -1383,7 +1389,7 @@ namespace ApsCalcUI
             HashSet<Neighborhood> peaks = [];
 
             // Each grid point is read as a center once and as a neighbor by up to four
-            // adjacent cells. Cache by integer coordinate so score() runs once per point.
+            // adjacent cells. Cache by integer coördinate so score() runs once per point.
             Dictionary<(int gpInc, int rgInc), float> scoreCache = [];
             float Scored(int gpInc, int rgInc)
             {
@@ -1576,11 +1582,13 @@ namespace ApsCalcUI
                 {
                     (float gp, float rg, float bestScore) = RefineToFinePeak(hood, fineSearchSpacing, fineGPBounds, scoreFunc);
 
-                    float topShellScore = TestType == TestType.DpsPerCost
-                        ? TopShells[modConfig.Bracket].DpsPerCostDict[DamageType]
-                        : TopShells[modConfig.Bracket].DpsPerVolumeDict[DamageType];
+                    float incumbentScore = TopShells.TryGetValue(modConfig.Bracket, out Shell incumbentShell)
+                        ? (TestType == TestType.DpsPerCost
+                            ? incumbentShell.DpsPerCostDict[DamageType]
+                            : incumbentShell.DpsPerVolumeDict[DamageType])
+                        : float.NegativeInfinity;
 
-                    if (bestScore > topShellScore)
+                    if (bestScore > incumbentScore)
                     {
                         Shell winner = ShellTest2(headForScoring, varCountsForScoring, gp, rg, modConfig.Bracket).shell;
                         TopShells[modConfig.Bracket] = winner;
@@ -1917,15 +1925,22 @@ namespace ApsCalcUI
             writer.WriteLine();
 
 
-            // Determine whether any shells met test criteria
-            bool shellsToPrint = false;
-            foreach (string shellName in TopDpsShells.Keys)
+            // Per-bracket winners in deterministic column order (LoaderBrackets order),
+            // filtered to brackets that produced a feasible shell.
+            List<string> bracketNames = [];
+            List<Shell> bracketWinners = [];
+            foreach (LoaderBracket bracket in LoaderBrackets)
             {
-                if (TopDpsShells[shellName] != null)
+                if (TopShells.TryGetValue(bracket, out Shell winner)
+                    && winner.DpsDict[DamageType] > 0)
                 {
-                    shellsToPrint = true;
+                    bracketNames.Add(bracket.DisplayName);
+                    bracketWinners.Add(winner);
                 }
             }
+
+            // Determine whether any shells met test criteria
+            bool shellsToPrint = bracketWinners.Count > 0;
 
             if (!shellsToPrint)
             {
@@ -1934,10 +1949,10 @@ namespace ApsCalcUI
             else
             {
                 writer.WriteLine("Shells");
-                foreach (KeyValuePair<string, Shell> topShellPair in TopDpsShells)
+                foreach (Shell topShell in bracketWinners)
                 {
                     // Calculate barrel lengths
-                    topShellPair.Value.CalculateRequiredBarrelLengths(MaxInaccuracy);
+                    topShell.CalculateRequiredBarrelLengths(MaxInaccuracy);
                     if (dtToShow[DamageType.Disruptor]
                         || dtToShow[DamageType.EMP]
                         || dtToShow[DamageType.MD]
@@ -1946,7 +1961,7 @@ namespace ApsCalcUI
                         || dtToShow[DamageType.HEAT]
                         || dtToShow[DamageType.Incendiary])
                     {
-                        topShellPair.Value.CalculateChemModifier();
+                        topShell.CalculateChemModifier();
                     }
 
                     // Calculate all damage and DPS -- including those not used for optimizing
@@ -1954,8 +1969,8 @@ namespace ApsCalcUI
                     {
                         if (dtToShow[dt])
                         {
-                            topShellPair.Value.CalculateDamageByType(dt, FragAngleMultiplier);
-                            topShellPair.Value.CalculateDpsByType(
+                            topShell.CalculateDamageByType(dt, FragAngleMultiplier);
+                            topShell.CalculateDpsByType(
                                 dt,
                                 TargetAC,
                                 TestIntervalSeconds,
@@ -1969,12 +1984,12 @@ namespace ApsCalcUI
                                 ImpactAngleFromPerpendicularDegrees);
                         }
                     }
-                    topShellPair.Value.GetModuleCounts();
+                    topShell.GetModuleCounts();
                 }
 
                 List<string> loaderSizeList =
                 [
-                    " ", .. TopDpsShells.Keys
+                    " ", .. bracketNames
                 ];
                 writer.WriteLine(string.Join(ColumnDelimiter, loaderSizeList));
 
@@ -1982,7 +1997,7 @@ namespace ApsCalcUI
                 [
                     "Gauge (mm)"
                 ];
-                foreach (Shell topShell in TopDpsShells.Values)
+                foreach (Shell topShell in bracketWinners)
                 {
                     AddValueToList(gaugeList, topShell.Gauge, 0);
                 }
@@ -1992,7 +2007,7 @@ namespace ApsCalcUI
                 [
                     "Total length (mm)"
                 ];
-                foreach (Shell topShell in TopDpsShells.Values)
+                foreach (Shell topShell in bracketWinners)
                 {
                     AddValueToList(totalLengthList, topShell.TotalLength, 0);
                 }
@@ -2002,7 +2017,7 @@ namespace ApsCalcUI
                 [
                     "Length without casings (mm)"
                 ];
-                foreach (Shell topShell in TopDpsShells.Values)
+                foreach (Shell topShell in bracketWinners)
                 {
                     AddValueToList(lengthWithoutCasingsList, topShell.ProjectileLength, 0);
                 }
@@ -2012,7 +2027,7 @@ namespace ApsCalcUI
                 [
                     "Total modules"
                 ];
-                foreach (Shell topShell in TopDpsShells.Values)
+                foreach (Shell topShell in bracketWinners)
                 {
                     AddValueToList(totalModulesList, topShell.ModuleCountTotal, 0);
                 }
@@ -2024,7 +2039,7 @@ namespace ApsCalcUI
                     [
                         "GP casing"
                     ];
-                    foreach (Shell topShell in TopDpsShells.Values)
+                    foreach (Shell topShell in bracketWinners)
                     {
                         AddValueToList(gpCasingList, topShell.GPCasingCount, 2);
                     }
@@ -2036,7 +2051,7 @@ namespace ApsCalcUI
                     [
                         "RG casing"
                     ];
-                    foreach (Shell topShell in TopDpsShells.Values)
+                    foreach (Shell topShell in bracketWinners)
                     {
                         AddValueToList(rgCasingList, topShell.RGCasingCount, 2);
                     }
@@ -2048,7 +2063,7 @@ namespace ApsCalcUI
                     [
                         "Rail draw"
                     ];
-                    foreach (Shell topShell in TopDpsShells.Values)
+                    foreach (Shell topShell in bracketWinners)
                     {
                         AddValueToList(railDrawList, topShell.RailDraw, 0);
                     }
@@ -2059,7 +2074,7 @@ namespace ApsCalcUI
                     [
                     "Total Recoil"
                     ];
-                foreach (Shell topShell in TopDpsShells.Values)
+                foreach (Shell topShell in bracketWinners)
                 {
                     AddValueToList(totalRecoilList, topShell.TotalRecoil, 0);
                 }
@@ -2072,7 +2087,7 @@ namespace ApsCalcUI
                     [
                         "Felt Recoil"
                     ];
-                    foreach (Shell topShell in TopDpsShells.Values)
+                    foreach (Shell topShell in bracketWinners)
                     {
                         AddValueToList(feltRecoilList, topShell.FeltRecoil, 0);
                     }
@@ -2085,7 +2100,7 @@ namespace ApsCalcUI
                     [
                         Module.AllModules[index].Name
                     ];
-                    foreach (Shell topShell in TopDpsShells.Values)
+                    foreach (Shell topShell in bracketWinners)
                     {
                         AddValueToList(modCountList, topShell.BodyModuleCounts[index], 0);
                     }
@@ -2096,7 +2111,7 @@ namespace ApsCalcUI
                 [
                     "Head"
                 ];
-                foreach (Shell topShell in TopDpsShells.Values)
+                foreach (Shell topShell in bracketWinners)
                 {
                     headList.Add(topShell.HeadModule.Name);
                 }
@@ -2106,7 +2121,7 @@ namespace ApsCalcUI
                     [
                     "Velocity modifier"
                     ];
-                foreach (Shell topShell in TopDpsShells.Values)
+                foreach (Shell topShell in bracketWinners)
                 {
                     AddValueToList(velocityModifierList, topShell.OverallVelocityModifier, 2);
                 }
@@ -2116,7 +2131,7 @@ namespace ApsCalcUI
                     [
                     "Velocity (m/s)"
                     ];
-                foreach (Shell topShell in TopDpsShells.Values)
+                foreach (Shell topShell in bracketWinners)
                 {
                     AddValueToList(velocityList, topShell.Velocity, 0);
                 }
@@ -2126,7 +2141,7 @@ namespace ApsCalcUI
                     [
                     "Effective range (m)"
                     ];
-                foreach (Shell topShell in TopDpsShells.Values)
+                foreach (Shell topShell in bracketWinners)
                 {
                     AddValueToList(effectiveRangeList, topShell.EffectiveRange, 0);
                 }
@@ -2136,7 +2151,7 @@ namespace ApsCalcUI
                     [
                     "Inaccuracy modifier"
                     ];
-                foreach (Shell topShell in TopDpsShells.Values)
+                foreach (Shell topShell in bracketWinners)
                 {
                     AddValueToList(inaccuracyModifierList, topShell.OverallInaccuracyModifier, 0, true);
                 }
@@ -2146,7 +2161,7 @@ namespace ApsCalcUI
                     [
                     "Barrel length for inaccuracy (m)"
                     ];
-                foreach (Shell topShell in TopDpsShells.Values)
+                foreach (Shell topShell in bracketWinners)
                 {
                     AddValueToList(barrelLengthInaccuracyList, topShell.BarrelLengthForInaccuracy, 1);
                 }
@@ -2158,7 +2173,7 @@ namespace ApsCalcUI
                     [
                         "Barrel length for propellant burn (m)"
                     ];
-                    foreach (Shell topShell in TopDpsShells.Values)
+                    foreach (Shell topShell in bracketWinners)
                     {
                         AddValueToList(barrelLengthPropellantBurnList, topShell.BarrelLengthForPropellant, 1);
                     }
@@ -2175,7 +2190,7 @@ namespace ApsCalcUI
                             [
                                 "KD modifier"
                             ];
-                            foreach (Shell topShell in TopDpsShells.Values)
+                            foreach (Shell topShell in bracketWinners)
                             {
                                 AddValueToList(kdModifierList, topShell.OverallKineticDamageModifier, 2);
                             }
@@ -2185,7 +2200,7 @@ namespace ApsCalcUI
                             [
                                 "Raw KD"
                             ];
-                            foreach (Shell topShell in TopDpsShells.Values)
+                            foreach (Shell topShell in bracketWinners)
                             {
                                 AddValueToList(rawKDList, topShell.RawKD, 0);
                             }
@@ -2195,7 +2210,7 @@ namespace ApsCalcUI
                             [
                                 "AP modifier"
                             ];
-                            foreach (Shell topShell in TopDpsShells.Values)
+                            foreach (Shell topShell in bracketWinners)
                             {
                                 AddValueToList(apModifierList, topShell.OverallArmorPierceModifier, 1);
                             }
@@ -2205,7 +2220,7 @@ namespace ApsCalcUI
                             [
                                 "AP"
                             ];
-                            foreach (Shell topShell in TopDpsShells.Values)
+                            foreach (Shell topShell in bracketWinners)
                             {
                                 AddValueToList(apList, topShell.ArmorPierce, 1);
                             }
@@ -2215,7 +2230,7 @@ namespace ApsCalcUI
                             [
                                 "KD * AP"
                             ];
-                            foreach (Shell topShell in TopDpsShells.Values)
+                            foreach (Shell topShell in bracketWinners)
                             {
                                 AddValueToList(kdAPList, topShell.ArmorPierce * topShell.RawKD, 0);
                             }
@@ -2225,7 +2240,7 @@ namespace ApsCalcUI
                             [
                                 "KD multiplier from angle"
                             ];
-                            foreach (Shell topShell in TopDpsShells.Values)
+                            foreach (Shell topShell in bracketWinners)
                             {
                                 if (topShell.HeadModule == Module.HollowPoint || TargetAC == 20f)
                                 {
@@ -2249,7 +2264,7 @@ namespace ApsCalcUI
                             [
                                 "Frag count"
                             ];
-                            foreach (Shell topShell in TopDpsShells.Values)
+                            foreach (Shell topShell in bracketWinners)
                             {
                                 AddValueToList(fragCountList, topShell.FragCount, 0);
                             }
@@ -2259,7 +2274,7 @@ namespace ApsCalcUI
                             [
                                 "Damage per frag"
                             ];
-                            foreach (Shell topShell in TopDpsShells.Values)
+                            foreach (Shell topShell in bracketWinners)
                             {
                                 AddValueToList(damagePerFragList, topShell.DamagePerFrag, 0);
                             }
@@ -2271,7 +2286,7 @@ namespace ApsCalcUI
                             [
                                 "MD explosion radius (m)"
                             ];
-                            foreach (Shell topShell in TopDpsShells.Values)
+                            foreach (Shell topShell in bracketWinners)
                             {
                                 AddValueToList(mdExplosionRadiusList, topShell.MDExplosionRadius, 0);
                             }
@@ -2283,7 +2298,7 @@ namespace ApsCalcUI
                             [
                                 "Raw HE damage"
                             ];
-                            foreach (Shell topShell in TopDpsShells.Values)
+                            foreach (Shell topShell in bracketWinners)
                             {
                                 AddValueToList(rawHEDamageList, topShell.RawHE, 0);
                             }
@@ -2293,7 +2308,7 @@ namespace ApsCalcUI
                             [
                                 "HE explosion radius (m)"
                             ];
-                            foreach (Shell topShell in TopDpsShells.Values)
+                            foreach (Shell topShell in bracketWinners)
                             {
                                 AddValueToList(heExplosionRadiusList, topShell.HEExplosionRadius, 1);
                             }
@@ -2304,7 +2319,7 @@ namespace ApsCalcUI
                         [
                             (DamageType)(int)dt + " damage"
                         ];
-                        foreach (Shell topShell in TopDpsShells.Values)
+                        foreach (Shell topShell in bracketWinners)
                         {
                             AddValueToList(damageList, topShell.DamageDict[dt], 0);
                         }
@@ -2316,7 +2331,7 @@ namespace ApsCalcUI
                 [
                     "Shell reload time (s)"
                 ];
-                foreach (Shell topShell in TopDpsShells.Values)
+                foreach (Shell topShell in bracketWinners)
                 {
                     AddValueToList(shellReloadTimeList, topShell.ShellReloadTime, 2);
                 }
@@ -2328,7 +2343,7 @@ namespace ApsCalcUI
                     [
                         "Cluster reload time (s)"
                     ];
-                    foreach (Shell topShell in TopDpsShells.Values)
+                    foreach (Shell topShell in bracketWinners)
                     {
                         AddValueToList(clusterReloadTimeList, topShell.ClusterReloadTime, 2);
                     }
@@ -2339,7 +2354,7 @@ namespace ApsCalcUI
                     [
                     "Uptime"
                     ];
-                foreach (Shell topShell in TopDpsShells.Values)
+                foreach (Shell topShell in bracketWinners)
                 {
                     AddValueToList(uptimeList, topShell.Uptime, 0, true);
                 }
@@ -2353,7 +2368,7 @@ namespace ApsCalcUI
                         [
                             (DamageType)(int)dt + " DPS"
                         ];
-                        foreach (Shell topShell in TopDpsShells.Values)
+                        foreach (Shell topShell in bracketWinners)
                         {
                             dpsList.Add(topShell.DpsDict[dt].ToString());
                         }
@@ -2369,7 +2384,7 @@ namespace ApsCalcUI
                         [
                             (DamageType)(int)dt + " DPS per volume"
                         ];
-                        foreach (Shell topShell in TopDpsShells.Values)
+                        foreach (Shell topShell in bracketWinners)
                         {
                             dpsPerVolumeList.Add(topShell.DpsPerVolumeDict[dt].ToString());
                         }
@@ -2379,7 +2394,7 @@ namespace ApsCalcUI
                         [
                             (DamageType)(int)dt + " DPS per cost"
                         ];
-                        foreach (Shell topShell in TopDpsShells.Values)
+                        foreach (Shell topShell in bracketWinners)
                         {
                             dpsPerCostList.Add(topShell.DpsPerCostDict[dt].ToString());
                         }
@@ -2395,7 +2410,7 @@ namespace ApsCalcUI
                     [
                         "Loader volume"
                     ];
-                    foreach (Shell topShell in TopDpsShells.Values)
+                    foreach (Shell topShell in bracketWinners)
                     {
                         loaderVolumeList.Add(topShell.LoaderVolume.ToString());
                     }
@@ -2407,7 +2422,7 @@ namespace ApsCalcUI
                         [
                         "Cooler volume"
                         ];
-                        foreach (Shell topShell in TopDpsShells.Values)
+                        foreach (Shell topShell in bracketWinners)
                         {
                             coolerVolumeList.Add(topShell.CoolerVolume.ToString());
                         }
@@ -2420,7 +2435,7 @@ namespace ApsCalcUI
                         [
                             "Charger volume"
                         ];
-                        foreach (Shell topShell in TopDpsShells.Values)
+                        foreach (Shell topShell in bracketWinners)
                         {
                             chargerVolumeList.Add(topShell.ChargerVolume.ToString());
                         }
@@ -2430,7 +2445,7 @@ namespace ApsCalcUI
                         [
                             "Engine volume"
                         ];
-                        foreach (Shell topShell in TopDpsShells.Values)
+                        foreach (Shell topShell in bracketWinners)
                         {
                             engineVolumeList.Add(topShell.EngineVolume.ToString());
                         }
@@ -2442,7 +2457,7 @@ namespace ApsCalcUI
                             [
                                 "Fuel access volume"
                             ];
-                            foreach (Shell topShell in TopDpsShells.Values)
+                            foreach (Shell topShell in bracketWinners)
                             {
                                 fuelAccessVolumeList.Add(topShell.FuelAccessVolume.ToString());
                             }
@@ -2454,7 +2469,7 @@ namespace ApsCalcUI
                         [
                             "Fuel storage volume"
                         ];
-                        foreach (Shell topShell in TopDpsShells.Values)
+                        foreach (Shell topShell in bracketWinners)
                         {
                             fuelStorageVolumeList.Add(topShell.FuelStorageVolume.ToString());
                         }
@@ -2465,7 +2480,7 @@ namespace ApsCalcUI
                     [
                         "Recoil volume"
                     ];
-                    foreach (Shell topShell in TopDpsShells.Values)
+                    foreach (Shell topShell in bracketWinners)
                     {
                         recoilVolumeList.Add(topShell.RecoilVolume.ToString());
                     }
@@ -2475,7 +2490,7 @@ namespace ApsCalcUI
                     [
                         "Ammo access volume"
                     ];
-                    foreach (Shell topShell in TopDpsShells.Values)
+                    foreach (Shell topShell in bracketWinners)
                     {
                         ammoAccessVolumeList.Add(topShell.AmmoAccessVolume.ToString());
                     }
@@ -2485,7 +2500,7 @@ namespace ApsCalcUI
                     [
                         "Ammo storage volume"
                     ];
-                    foreach (Shell topShell in TopDpsShells.Values)
+                    foreach (Shell topShell in bracketWinners)
                     {
                         ammoStorageVolumeList.Add(topShell.AmmoStorageVolume.ToString());
                     }
@@ -2495,7 +2510,7 @@ namespace ApsCalcUI
                     [
                         "Total volume"
                     ];
-                    foreach (Shell topShell in TopDpsShells.Values)
+                    foreach (Shell topShell in bracketWinners)
                     {
                         totalVolumeList.Add(topShell.VolumePerLoader.ToString());
                     }
@@ -2508,7 +2523,7 @@ namespace ApsCalcUI
                     [
                         "Cost per shell"
                     ];
-                    foreach (Shell topShell in TopDpsShells.Values)
+                    foreach (Shell topShell in bracketWinners)
                     {
                         costPerShellList.Add(topShell.CostPerShell.ToString());
                     }
@@ -2518,7 +2533,7 @@ namespace ApsCalcUI
                     [
                         "Loader cost"
                     ];
-                    foreach (Shell topShell in TopDpsShells.Values)
+                    foreach (Shell topShell in bracketWinners)
                     {
                         loaderCostList.Add(topShell.LoaderCost.ToString());
                     }
@@ -2530,7 +2545,7 @@ namespace ApsCalcUI
                         [
                             "Cooler cost"
                         ];
-                        foreach (Shell topShell in TopDpsShells.Values)
+                        foreach (Shell topShell in bracketWinners)
                         {
                             coolerCostList.Add(topShell.CoolerCost.ToString());
                         }
@@ -2543,7 +2558,7 @@ namespace ApsCalcUI
                         [
                             "Charger cost"
                         ];
-                        foreach (Shell topShell in TopDpsShells.Values)
+                        foreach (Shell topShell in bracketWinners)
                         {
                             chargerCostList.Add(topShell.ChargerCost.ToString());
                         }
@@ -2553,7 +2568,7 @@ namespace ApsCalcUI
                         [
                             "Fuel burned"
                         ];
-                        foreach (Shell topShell in TopDpsShells.Values)
+                        foreach (Shell topShell in bracketWinners)
                         {
                             fuelBurnedList.Add(topShell.FuelBurned.ToString());
                         }
@@ -2563,7 +2578,7 @@ namespace ApsCalcUI
                         [
                             "Engine cost"
                         ];
-                        foreach (Shell topShell in TopDpsShells.Values)
+                        foreach (Shell topShell in bracketWinners)
                         {
                             engineCostList.Add(topShell.EngineCost.ToString());
                         }
@@ -2575,7 +2590,7 @@ namespace ApsCalcUI
                             [
                                 "Fuel access cost"
                             ];
-                            foreach (Shell topShell in TopDpsShells.Values)
+                            foreach (Shell topShell in bracketWinners)
                             {
                                 fuelAccessCostList.Add(topShell.FuelAccessCost.ToString());
                             }
@@ -2586,7 +2601,7 @@ namespace ApsCalcUI
                         [
                             "Fuel storage cost"
                         ];
-                        foreach (Shell topShell in TopDpsShells.Values)
+                        foreach (Shell topShell in bracketWinners)
                         {
                             fuelStorageCostList.Add(topShell.FuelStorageCost.ToString());
                         }
@@ -2597,7 +2612,7 @@ namespace ApsCalcUI
                     [
                         "Recoil cost"
                     ];
-                    foreach (Shell topShell in TopDpsShells.Values)
+                    foreach (Shell topShell in bracketWinners)
                     {
                         recoilCostList.Add(topShell.RecoilCost.ToString());
                     }
@@ -2607,7 +2622,7 @@ namespace ApsCalcUI
                     [
                         "Ammo used"
                     ];
-                    foreach (Shell topShell in TopDpsShells.Values)
+                    foreach (Shell topShell in bracketWinners)
                     {
                         ammoUsedList.Add(topShell.AmmoUsed.ToString());
                     }
@@ -2617,7 +2632,7 @@ namespace ApsCalcUI
                     [
                         "Ammo access cost"
                     ];
-                    foreach (Shell topShell in TopDpsShells.Values)
+                    foreach (Shell topShell in bracketWinners)
                     {
                         ammoAccessCostList.Add(topShell.AmmoAccessCost.ToString());
                     }
@@ -2627,7 +2642,7 @@ namespace ApsCalcUI
                     [
                         "Ammo storage cost"
                     ];
-                    foreach (Shell topShell in TopDpsShells.Values)
+                    foreach (Shell topShell in bracketWinners)
                     {
                         ammoStorageCostList.Add(topShell.AmmoStorageCost.ToString());
                     }
@@ -2637,7 +2652,7 @@ namespace ApsCalcUI
                     [
                         "Total cost"
                     ];
-                    foreach (Shell topShell in TopDpsShells.Values)
+                    foreach (Shell topShell in bracketWinners)
                     {
                         totalCostList.Add(topShell.CostPerLoader.ToString());
                     }
@@ -2647,7 +2662,7 @@ namespace ApsCalcUI
                     [
                         "Cost per volume"
                     ];
-                    foreach (Shell topShell in TopDpsShells.Values)
+                    foreach (Shell topShell in bracketWinners)
                     {
                         costPerVolumeList.Add(topShell.CostPerVolume.ToString());
                     }
