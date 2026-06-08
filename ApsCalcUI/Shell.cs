@@ -925,6 +925,7 @@ namespace ApsCalcUI
 
             // Kinetic stats needed for pendepth testing
             CalculateVelocity();
+            CalculateEffectiveRange();
             CalculateKineticDamage();
             CalculateAP();
 
