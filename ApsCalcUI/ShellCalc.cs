@@ -32,7 +32,7 @@ namespace ApsCalcUI
         };
     }
 
-    // Damage types.  Enum is faster than strings.
+    // Damage types
     public enum DamageType : int
     {
         Kinetic,
@@ -502,8 +502,11 @@ namespace ApsCalcUI
                     {
                         maxDraw = MathF.Min(maxDraw, shellUnderTesting.CalculateMaxDrawForInaccuracy(MaxBarrelLengthInM, MaxInaccuracy, shellUnderTesting.MaxDrawCasing));
                     }
+
                     float minVelocity = MathF.Max(MinVelocityInput, TargetArmorScheme.CalculateMinVelocityToPenetrate(shellUnderTesting, ImpactAngleFromPerpendicularDegrees));
                     float minDraw = shellUnderTesting.CalculateMinDrawForVelocityAndRange(minVelocity, MinEffectiveRangeInput);
+                    maxDraw = MathF.Floor(maxDraw);
+                    minDraw = MathF.Ceiling(minDraw);
 
                     if (maxDraw >= minDraw)
                     {
@@ -603,10 +606,12 @@ namespace ApsCalcUI
                                 if (!shellUnderTestingBelt.GunUsesRecoilAbsorbers)
                                     maxDrawBelt = MathF.Min(maxDrawBelt,
                                         shellUnderTestingBelt.CalculateMaxDrawForInaccuracy(MaxBarrelLengthInM, MaxInaccuracy, shellUnderTestingBelt.MaxDrawCasing));
+                                maxDrawBelt = MathF.Floor(maxDrawBelt);
 
                                 float minVelocityBelt = MathF.Max(MinVelocityInput,
                                     TargetArmorScheme.CalculateMinVelocityToPenetrate(shellUnderTestingBelt, ImpactAngleFromPerpendicularDegrees));
                                 float minDrawBelt = shellUnderTestingBelt.CalculateMinDrawForVelocityAndRange(minVelocityBelt, MinEffectiveRangeInput);
+                                minDrawBelt = MathF.Ceiling(minDrawBelt);
 
                                 if (maxDrawBelt >= minDrawBelt)
                                 {
@@ -619,8 +624,6 @@ namespace ApsCalcUI
                                         : 0;
 
                                     shellUnderTestingBelt.RailDraw = optimalDraw;
-                                    shellUnderTestingBelt.CalculateVelocity();
-                                    shellUnderTestingBelt.CalculateEffectiveRange();
                                     shellUnderTestingBelt.CalculateDpsByType(
                                         DamageType, TargetAC, TestIntervalSeconds, StoragePerVolume, StoragePerCost,
                                         EnginePpm, EnginePpv, EnginePpc, EngineUsesFuel, TargetArmorScheme,
@@ -672,8 +675,6 @@ namespace ApsCalcUI
         /// </summary>
         void CompareToTopShells(Shell shellUnderTesting, Dictionary<DamageType, float> referenceDict)
         {
-            shellUnderTesting.CalculateVelocity();
-            shellUnderTesting.CalculateEffectiveRange();
             shellUnderTesting.CalculateDpsByType(
                 DamageType,
                 TargetAC,
@@ -986,96 +987,127 @@ namespace ApsCalcUI
         /// <summary>
         /// Runs optimized algorithms to determine optimal draw depending on damage type
         /// </summary>
-        /// <param name="shellUnderTesting">Shell being tested (normal or belt)</param>
+        /// <param name="shellUnderTesting">Shell being tested</param>
+        /// <param name="maxDraw">Max draw allowed by shell, recoil, and user-input limits</param>
+        /// <param name="minDraw">Min draw for velocity, effective range, and armor penetration</param>
+        /// <param name="referenceDict">DPS per Cost or Volume</param>
         float CalculateOptimalRailDraw2(Shell shellUnderTesting,
             float maxDraw,
             float minDraw,
             Dictionary<DamageType, float> referenceDict)
         {
+            // Draw filtering must be done before reaching this point
+            ArgumentOutOfRangeException.ThrowIfLessThan(maxDraw, minDraw);
+
             if (DamageType != DamageType.Kinetic)
             {
-                return MathF.Min(maxDraw, MathF.Ceiling(minDraw));
+                return minDraw;
             }
-
-            // Shortcut impossible requirement
-            shellUnderTesting.RailDraw = maxDraw;
-            shellUnderTesting.CalculateDpsByType(
-                DamageType,
-                TargetAC,
-                TestIntervalSeconds,
-                StoragePerVolume,
-                StoragePerCost,
-                EnginePpm,
-                EnginePpv,
-                EnginePpc,
-                EngineUsesFuel,
-                TargetArmorScheme,
-                ImpactAngleFromPerpendicularDegrees);
-            if (referenceDict[DamageType] == 0)
+            else
             {
-                return 0;
+                // For kinetic, optimal draw will always be one of six fixed points
+                // First three points determined by shell
+                HashSet<float> drawCandidates = [
+                    minDraw,
+                    maxDraw,
+                    MathF.Min(maxDraw, MathF.Max(minDraw, shellUnderTesting.MaxDrawCasing))];
+                // Clamp calculated candidate point to integer grid (no fractional draw)
+                // Test floor and ceiling for thoroughness
+                void AddCandidate(float draw)
+                {
+                    drawCandidates.Add(MathF.Min(maxDraw, MathF.Max(minDraw, MathF.Floor(draw))));
+                    drawCandidates.Add(MathF.Min(maxDraw, MathF.Max(minDraw, MathF.Ceiling(draw))));
+                }
+
+                (float score, float denominator) Evaluate(float draw)
+                {
+                    shellUnderTesting.RailDraw = draw;
+                    shellUnderTesting.CalculateDpsByType(
+                        DamageType,
+                        TargetAC,
+                        TestIntervalSeconds,
+                        StoragePerVolume,
+                        StoragePerCost,
+                        EnginePpm,
+                        EnginePpv,
+                        EnginePpc,
+                        EngineUsesFuel,
+                        TargetArmorScheme,
+                        ImpactAngleFromPerpendicularDegrees);
+                    float score = referenceDict[DamageType];
+                    float denominator = TestType == TestType.DpsPerVolume
+                        ? shellUnderTesting.VolumePerLoader
+                        : shellUnderTesting.CostPerLoader;
+
+                    return (score, denominator);
+                }
+
+                float gpRecoil = shellUnderTesting.GPCasingCount * shellUnderTesting.GPRecoilPerCasing;
+
+                // Over-penetration interior optimum d = A/B - 2*GPRecoil of sqrt(V)/(A + B*d) on one
+                // affine piece of the denominator. Recover (A, B) from the denominator at the two
+                // piece endpoints (max separation -> best conditioned). NaN if the piece is empty or
+                // the denominator does not increase across it (no interior maximum).
+                float FindStationaryPoint(float pieceLo, float pieceHi)
+                {
+                    if (pieceHi <= pieceLo)
+                    {
+                        return float.NaN;
+                    }
+                    float denomLo = Evaluate(pieceLo).denominator;
+                    float denomHi = Evaluate(pieceHi).denominator;
+                    float slopeB = (denomHi - denomLo) / (pieceHi - pieceLo);
+                    if (slopeB <= 0f)
+                    {
+                        return float.NaN;
+                    }
+                    float interceptA = denomLo - slopeB * pieceLo;
+                    return interceptA / slopeB - 2f * gpRecoil;
+                }
+
+                // Fourth point: AP = AC
+                if (shellUnderTesting.OverallArmorPierceModifier > 0f && TargetAC > 0f)
+                {
+                    float velocityForAP = TargetAC / shellUnderTesting.OverallArmorPierceModifier / 0.0175f;
+                    float recoilForAP = shellUnderTesting.CalculateMinTotalRecoilForVelocity(velocityForAP);
+                    AddCandidate(recoilForAP - gpRecoil);
+                }
+
+                // Fifth point: piecewise intercept where draw is all in casings
+                if (shellUnderTesting.MaxDrawCasing > minDraw)
+                {
+                    float casingIntercept = FindStationaryPoint(MathF.Max(minDraw, 0f), shellUnderTesting.MaxDrawCasing);
+                    if (!float.IsNaN(casingIntercept))
+                    {
+                        AddCandidate(casingIntercept);
+                    }
+                }
+
+                // Sixth point: piecewise intercept where draw overflows into projectile
+                if (shellUnderTesting.MaxDrawCasing < maxDraw)
+                {
+                    float projectileIntercept = FindStationaryPoint(shellUnderTesting.MaxDrawCasing, maxDraw);
+                    if (!float.IsNaN(projectileIntercept))
+                    {
+                        AddCandidate(projectileIntercept);
+                    }
+                }
+
+                // Find best candidate
+                float optimalDraw = minDraw;
+                float bestScore = float.NegativeInfinity;
+                foreach(float candidate in drawCandidates)
+                {
+                    float score = Evaluate(candidate).score;
+                    if(score > bestScore || (score >= bestScore && candidate < optimalDraw))
+                    {
+                        optimalDraw = candidate;
+                        bestScore = score;
+                    }
+                }
+
+                return optimalDraw;
             }
-
-            // Binary gradient ascent to find optimal draw without testing every value
-            float optimalDraw = maxDraw;
-            float midRange;
-            float midRangeScore;
-            float midRangePlus;
-            float midRangePlusScore;
-            float topOfRange = maxDraw;
-            float bottomOfRange = minDraw;
-
-            while (bottomOfRange + 1 < topOfRange)
-            {
-                midRange = MathF.Floor((topOfRange + bottomOfRange) / 2f);
-                midRangePlus = midRange + 1;
-
-                shellUnderTesting.RailDraw = midRange;
-                shellUnderTesting.CalculateDpsByType(
-                    DamageType,
-                    TargetAC,
-                    TestIntervalSeconds,
-                    StoragePerVolume,
-                    StoragePerCost,
-                    EnginePpm,
-                    EnginePpv,
-                    EnginePpc,
-                    EngineUsesFuel,
-                    TargetArmorScheme,
-                    ImpactAngleFromPerpendicularDegrees);
-                midRangeScore = referenceDict[DamageType];
-
-                shellUnderTesting.RailDraw = midRangePlus;
-                shellUnderTesting.CalculateDpsByType(
-                    DamageType,
-                    TargetAC,
-                    TestIntervalSeconds,
-                    StoragePerVolume,
-                    StoragePerCost,
-                    EnginePpm,
-                    EnginePpv,
-                    EnginePpc,
-                    EngineUsesFuel,
-                    TargetArmorScheme,
-                    ImpactAngleFromPerpendicularDegrees);
-                midRangePlusScore = referenceDict[DamageType];
-
-                if (midRangePlusScore == 0)
-                {
-                    bottomOfRange = midRangePlus;
-                }
-                else if (midRangeScore >= midRangePlusScore)
-                {
-                    topOfRange = midRange;
-                    optimalDraw = midRange;
-                }
-                else
-                {
-                    bottomOfRange = midRangePlus;
-                    optimalDraw = midRangePlus;
-                }
-            }
-            return optimalDraw;
         }
 
         /// <summary>
@@ -1243,6 +1275,8 @@ namespace ApsCalcUI
                 TargetArmorScheme.CalculateMinVelocityToPenetrate(shellUnderTesting, ImpactAngleFromPerpendicularDegrees));
             float minDraw = shellUnderTesting.CalculateMinDrawForVelocityAndRange(minVelocity, MinEffectiveRangeInput);
 
+            maxDraw = MathF.Floor(maxDraw);
+            minDraw = MathF.Ceiling(minDraw);
             if (maxDraw >= minDraw)
             {
                 shellUnderTesting.CalculateReloadTime(TestIntervalSeconds);
@@ -1273,8 +1307,6 @@ namespace ApsCalcUI
                         CalculateOptimalRailDraw2(shellUnderTesting, maxDraw, minDraw, referenceDict)
                         : 0;
                     shellUnderTesting.RailDraw = optimalDraw;
-                    shellUnderTesting.CalculateVelocity();
-                    shellUnderTesting.CalculateEffectiveRange();
                     shellUnderTesting.CalculateDpsByType(
                         DamageType,
                         TargetAC,
@@ -1316,6 +1348,9 @@ namespace ApsCalcUI
                 maxDraw = MathF.Min(maxDraw, shell.CalculateMaxDrawForInaccuracy(MaxBarrelLengthInM, MaxInaccuracy, shell.MaxDrawCasing));
 
             float minDraw = shell.CalculateMinDrawForVelocityAndRange(minVelocity, MinEffectiveRangeInput);
+
+            maxDraw = MathF.Floor(maxDraw);
+            minDraw = MathF.Ceiling(minDraw);
             if (maxDraw < minDraw)
                 return 0f;
 
@@ -1342,12 +1377,11 @@ namespace ApsCalcUI
 
             shell.RailDraw = maxDraw > 0
                 ? CalculateOptimalRailDraw2(shell, maxDraw, minDraw, referenceDict) : 0;
-            shell.CalculateVelocity();
-            shell.CalculateEffectiveRange();
             shell.CalculateDpsByType(
                 DamageType, TargetAC, TestIntervalSeconds, StoragePerVolume, StoragePerCost,
                 EnginePpm, EnginePpv, EnginePpc, EngineUsesFuel, TargetArmorScheme,
                 ImpactAngleFromPerpendicularDegrees);
+            shell.CalculateEffectiveRange();
 
             return referenceDict[DamageType];
         }
@@ -2057,42 +2091,6 @@ namespace ApsCalcUI
                     }
                     writer.WriteLine(string.Join(ColumnDelimiter, rgCasingList));
                 }
-                if (showDraw)
-                {
-                    List<string> railDrawList =
-                    [
-                        "Rail draw"
-                    ];
-                    foreach (Shell topShell in bracketWinners)
-                    {
-                        AddValueToList(railDrawList, topShell.RailDraw, 0);
-                    }
-                    writer.WriteLine(string.Join(ColumnDelimiter, railDrawList));
-                }
-
-                List<string> totalRecoilList =
-                    [
-                    "Total Recoil"
-                    ];
-                foreach (Shell topShell in bracketWinners)
-                {
-                    AddValueToList(totalRecoilList, topShell.TotalRecoil, 0);
-                }
-                writer.WriteLine(string.Join(ColumnDelimiter, totalRecoilList));
-
-                // RG casings enjoy a reduction in felt recoil from rail draw
-                if (MaxRGInput > 0)
-                {
-                    List<string> feltRecoilList =
-                    [
-                        "Felt Recoil"
-                    ];
-                    foreach (Shell topShell in bracketWinners)
-                    {
-                        AddValueToList(feltRecoilList, topShell.FeltRecoil, 0);
-                    }
-                    writer.WriteLine(string.Join(ColumnDelimiter, feltRecoilList));
-                }
 
                 foreach (int index in modsToShow)
                 {
@@ -2116,6 +2114,48 @@ namespace ApsCalcUI
                     headList.Add(topShell.HeadModule.Name);
                 }
                 writer.WriteLine(string.Join(ColumnDelimiter, headList));
+
+                if (showDraw)
+                {
+                    List<string> railDrawList =
+                    [
+                        "Rail draw"
+                    ];
+                    foreach (Shell topShell in bracketWinners)
+                    {
+                        AddValueToList(railDrawList, topShell.RailDraw, 0);
+                    }
+                    writer.WriteLine(string.Join(ColumnDelimiter, railDrawList));
+                }
+
+                // Total recoil = draw if no GP
+                if (MaxGPInput > 0)
+                {
+                    List<string> totalRecoilList =
+                        [
+                        "Total Recoil"
+                        ];
+                    foreach (Shell topShell in bracketWinners)
+                    {
+                        AddValueToList(totalRecoilList, topShell.TotalRecoil, 0);
+                    }
+                    writer.WriteLine(string.Join(ColumnDelimiter, totalRecoilList));
+                }
+
+                // RG casings enjoy a reduction in felt recoil from rail draw
+                if (MaxRGInput > 0)
+                {
+                    List<string> feltRecoilList =
+                    [
+                        "Felt Recoil"
+                    ];
+                    foreach (Shell topShell in bracketWinners)
+                    {
+                        AddValueToList(feltRecoilList, topShell.FeltRecoil, 0);
+                    }
+                    writer.WriteLine(string.Join(ColumnDelimiter, feltRecoilList));
+                }
+
 
                 List<string> velocityModifierList =
                     [
