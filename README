@@ -145,6 +145,14 @@ the optimizer to discard any shell whose required minimum barrel length (for
 inaccuracy or propellant burn) exceeds the limit. The number entered can
 represent a fixed length (select "m" from the dropdown) or a multiple of the
 gauge (select "calibers").
+    Hard inaccuracy limit checkbox: When checked, optimizer will reject any
+    shells whose required barrel length for propellant burn or for inaccuracy
+    exceed set limit. When unchecked, propellant length is still a hard limit,
+	but rather than excluding shells above a certain inaccuracy value,
+	optimizer will instead calculate impact area for each shell, then divide 
+	DPS stats by impact area before comparing shells.
+	Impact area is calculated using Min. Eff. Range and barrel length limit
+	(fixed length or multiple of calibers).
 
 Damage Type: damage type to optimize.
   Kinetic. Prompts entry of target AC value(s). Note that more than one AC
