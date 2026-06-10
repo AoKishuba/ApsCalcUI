@@ -10,7 +10,7 @@ namespace ApsCalcUI
 {
     public partial class ParameterInput : Form
     {
-        List<TestParameters> parameterList = [];
+        readonly List<TestParameters> parameterList = [];
         int testsInQueue = 0;
         // For automatically setting min gauge to compensate for smoke minimum 200 mm
         decimal nonSmokeMinGauge = 18;
@@ -960,7 +960,7 @@ namespace ApsCalcUI
                             ShellCalc MakeShellCalc(int gauge, float gaugeMultiplier) => new(
                                 testParameters.BarrelCount,
                                 gauge,
-                                MathF.Pow(gauge / 500f, 1.8f),
+                                gaugeMultiplier,
                                 testParameters.HeadIndices,
                                 testParameters.BaseModule,
                                 testParameters.FixedModulecounts,
@@ -1017,9 +1017,25 @@ namespace ApsCalcUI
                             DamageType damageType = testParameters.DamageType;
                             TestType testType = testParameters.TestType;
 
-                            float ScoreOf(Shell s) => testType == TestType.DpsPerCost
-                                ? s.DpsPerCostDict[damageType]
-                                : s.DpsPerVolumeDict[damageType];
+
+                            float ScoreOf(Shell s)
+                            {
+                                float score;
+                                if (testParameters.LimitBarrelLength && !testParameters.BarrelLengthHardLimit)
+                                {
+                                    score = testType == TestType.DpsPerCost
+                                        ? s.DpsPerCostPerAreaDict[damageType]
+                                        : s.DpsPerVolumePerAreaDict[damageType];
+                                }
+                                else
+                                {
+                                    score = testType == TestType.DpsPerCost
+                                        ? s.DpsPerCostDict[damageType]
+                                        : s.DpsPerVolumeDict[damageType];
+                                }
+                                return score;
+                            }
+
 
                             Parallel.For(
                                 testParameters.MinGauge,

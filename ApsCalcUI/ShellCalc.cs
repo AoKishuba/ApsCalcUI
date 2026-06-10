@@ -1058,9 +1058,6 @@ namespace ApsCalcUI
             float minDraw,
             Dictionary<DamageType, float> referenceDict)
         {
-            // Draw filtering must be done before reaching this point
-            ArgumentOutOfRangeException.ThrowIfLessThan(maxDraw, minDraw, "Min draw cannot be greater than max draw");
-
             if (DamageType != DamageType.Kinetic)
             {
                 return minDraw;

@@ -1033,7 +1033,6 @@ namespace ApsCalcUI
         public void CalculateDpsPerAreaByType(float barrelLengthInM, float range)
         {
             CalculateInaccuracyAtBarrelLength(barrelLengthInM, range);
-            ArgumentOutOfRangeException.ThrowIfEqual(ImpactArea, 0, "Impact area cannot be 0");
             foreach (DamageType dpsType in DpsPerAreaDict.Keys)
             {
                 DpsPerAreaDict[dpsType] = DpsDict[dpsType] / ImpactArea;

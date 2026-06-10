@@ -37,9 +37,7 @@ namespace ApsCalcUI
         public float FragAngleMultiplier;
         public float MinDisruptor;
         public Scheme ArmorScheme;
-        public bool Penpdepth;
         public TestType TestType;
-        public bool Labels;
         public int TestInterval;
         public float StoragePerVolume;
         public float StoragePerCost;

@@ -14,11 +14,11 @@ namespace ApsCalcUI
         public List<Layer> LayerList { get; set; } = [];
 
         // Maximum useful AC
-        public float MaxAC { get; set; }
 
 
         /// <summary>
         /// Calculates AC of each layer, taking into account structural bonus
+        /// Layer AC defaults to raw, so last layer can be left alone
         /// </summary>
         public void CalculateLayerAC()
         {
@@ -28,9 +28,6 @@ namespace ApsCalcUI
                 Layer currentLayer = LayerList[layerIndex];
                 Layer nextLayer = LayerList[layerIndex + 1];
                 currentLayer.AC = nextLayer.GivesACBonus ? currentLayer.RawAC + nextLayer.ACBonus : currentLayer.RawAC;
-
-                // Update max useful AC
-                MaxAC = Math.Max(MaxAC, currentLayer.AC);
             }
 
             // Last layer is left at default
@@ -46,7 +43,7 @@ namespace ApsCalcUI
 
             float totalHP = 0;
             float ACTimesHP = 0;
-            for (int layerIndex = 0;layerIndex < LayerList.Count -1;layerIndex++)
+            for (int layerIndex = 0;layerIndex < LayerList.Count;layerIndex++)
             {
                 Layer currentLayer = LayerList[layerIndex];
                 ACTimesHP += currentLayer.AC * currentLayer.HP;
