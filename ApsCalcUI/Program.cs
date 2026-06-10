@@ -58,6 +58,7 @@ namespace ApsCalcUI
         public bool RawNumberOutputIsChecked;
         public char ColumnDelimiter;
         public bool UseBruteForce;
+        public bool BarrelLengthHardLimit;
     }
 
     static class Program

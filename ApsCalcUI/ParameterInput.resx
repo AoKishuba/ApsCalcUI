@@ -120,6 +120,12 @@
   <metadata name="ToolTip.TrayLocation" type="System.Drawing.Point, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
     <value>196, 17</value>
   </metadata>
+  <data name="BarrelLengthHardLimitCB.ToolTip" xml:space="preserve">
+    <value>If checked, shells whose required barrel length for inaccuracy or propellant burn
+will be rejected outright.
+If unchecked, DPS will instead be divided by area of impact at Min Eff. Range;
+length for propellant burn is always a hard limit.</value>
+  </data>
   <metadata name="QueueErrorProvider.TrayLocation" type="System.Drawing.Point, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
     <value>288, 17</value>
   </metadata>

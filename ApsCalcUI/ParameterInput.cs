@@ -548,6 +548,11 @@ namespace ApsCalcUI
             BarrelLengthLimitDD.Enabled = BarrelLengthLimitCB.Checked;
             BarrelLengthLimitUD.Enabled = BarrelLengthLimitCB.Checked;
             MaxInaccUD.Enabled = BarrelLengthLimitCB.Checked;
+            BarrelLengthHardLimitCB.Enabled = BarrelLengthLimitCB.Checked;
+            if (!BarrelLengthLimitCB.Checked)
+            {
+                BarrelLengthHardLimitCB.Checked = true;
+            }
         }
 
         private void TracerRB_CheckedChanged(object sender, EventArgs e)
@@ -603,7 +608,7 @@ namespace ApsCalcUI
             else if (PendepthCB.Checked && ArmorLayerLB.Items == null)
             {
                 error = true;
-                QueueErrorProvider.SetError(AddParametersButton, "Add at least one layer to the target armor scheme or deselect 'Pendepth'");
+                QueueErrorProvider.SetError(AddParametersButton, "Add at least one layer to the target armor scheme or deselect \"Pendepth\"");
             }
             else if (MinVelocityUD.Value > 0 && MaxDrawUD.Value == 0 && MaxGPUD.Value == 0)
             {
@@ -620,6 +625,14 @@ namespace ApsCalcUI
                 error = true;
                 QueueErrorProvider.SetError(AddParametersButton, "Add at least one armor layer with \"Add\" or uncheck \"Pendepth\"");
             }
+            else if (BarrelLengthLimitCB.Checked && !BarrelLengthHardLimitCB.Checked && MinRangeUD.Value == 0)
+            {
+                error = true;
+                QueueErrorProvider.SetError(AddParametersButton, 
+                    "Soft barrel length limit selected but no \"Min Eff. Range\" entered.\n"
+                    + "Check \"Hard inaccuracy limit\", uncheck \"Limit barrel length\", or\n"
+                    + "enter nonzero \"Min Eff. Range\" for inaccuracy calculations.");
+            }
 
             if (!error)
             {
@@ -630,9 +643,10 @@ namespace ApsCalcUI
                 testsInQueue += 1;
                 TestsInQueueLabel.Text = "Tests in Queue: " + testsInQueue.ToString();
 
+                int barrelCount = ((BarrelCountItem)BarrelCountDD.SelectedItem).ID;
                 TestParameters testParameters = new()
                 {
-                    BarrelCount = ((BarrelCountItem)BarrelCountDD.SelectedItem).ID,
+                    BarrelCount = barrelCount,
                     MinGauge = (int)MinGaugeUD.Value,
                     MaxGauge = (int)MaxGaugeUD.Value,
 
@@ -898,6 +912,7 @@ namespace ApsCalcUI
                 testParameters.LimitBarrelLength = BarrelLengthLimitCB.Checked;
                 testParameters.MaxBarrelLength = (float)BarrelLengthLimitUD.Value;
                 testParameters.BarrelLengthLimitType = ((BarrelLengthLimitTypeItem)BarrelLengthLimitDD.SelectedItem).ID;
+                testParameters.BarrelLengthHardLimit = BarrelLengthHardLimitCB.Checked;
 
                 testParameters.VerboseOutputIsChecked = VerboseOutputCB.Checked;
                 testParameters.RawNumberOutputIsChecked = RawNumberOutputCB.Checked;
@@ -943,55 +958,56 @@ namespace ApsCalcUI
                         foreach (float ac in testParameters.TargetACList)
                         {
                             ShellCalc MakeShellCalc(int gauge, float gaugeMultiplier) => new(
-                                                                testParameters.BarrelCount,
-                                    gauge,
-                                    MathF.Pow(gauge / 500f, 1.8f),
-                                    testParameters.HeadIndices,
-                                    testParameters.BaseModule,
-                                    testParameters.FixedModulecounts,
-                                    testParameters.MinModuleCount,
-                                    testParameters.VariableModuleIndices,
-                                    testParameters.RegularClipsPerLoader,
-                                    testParameters.RegularInputsPerLoader,
-                                    testParameters.BeltfedClipsPerLoader,
-                                    testParameters.BeltfedInputsPerLoader,
-                                    testParameters.UsesAmmoEjector,
-                                    testParameters.MaxGPCasingCount,
-                                    testParameters.CasingIncrement,
-                                    testParameters.MaxRGCasingCount,
-                                    testParameters.MinLength,
-                                    testParameters.MaxLength,
-                                    testParameters.MaxDraw,
-                                    testParameters.MaxRecoil,
-                                    testParameters.MinVelocity,
-                                    testParameters.MinEffectiveRange,
-                                    testParameters.ImpactAngle,
-                                    testParameters.SabotAngleMultiplier,
-                                    testParameters.NonSabotAngleMultiplier,
-                                    ac,
-                                    testParameters.DamageType,
-                                    testParameters.FragConeAngle,
-                                    testParameters.FragAngleMultiplier,
-                                    testParameters.MinDisruptor,
-                                    testParameters.ArmorScheme,
-                                    testParameters.TestType,
-                                    testParameters.TestInterval,
-                                    testParameters.StoragePerVolume,
-                                    testParameters.StoragePerCost,
-                                    testParameters.EnginePpm,
-                                    testParameters.EnginePpv,
-                                    testParameters.EnginePpc,
-                                    testParameters.EngineUsesFuel,
-                                    testParameters.FiringPieceIsDif,
-                                    testParameters.GunUsesRecoilAbsorbers,
-                                    testParameters.MaxInaccuracy,
-                                    testParameters.RateOfFireRpm,
-                                    testParameters.LimitBarrelLength,
-                                    testParameters.MaxBarrelLength,
-                                    testParameters.BarrelLengthLimitType,
-                                    testParameters.VerboseOutputIsChecked,
-                                    testParameters.RawNumberOutputIsChecked,
-                                    testParameters.ColumnDelimiter
+                                testParameters.BarrelCount,
+                                gauge,
+                                MathF.Pow(gauge / 500f, 1.8f),
+                                testParameters.HeadIndices,
+                                testParameters.BaseModule,
+                                testParameters.FixedModulecounts,
+                                testParameters.MinModuleCount,
+                                testParameters.VariableModuleIndices,
+                                testParameters.RegularClipsPerLoader,
+                                testParameters.RegularInputsPerLoader,
+                                testParameters.BeltfedClipsPerLoader,
+                                testParameters.BeltfedInputsPerLoader,
+                                testParameters.UsesAmmoEjector,
+                                testParameters.MaxGPCasingCount,
+                                testParameters.CasingIncrement,
+                                testParameters.MaxRGCasingCount,
+                                testParameters.MinLength,
+                                testParameters.MaxLength,
+                                testParameters.MaxDraw,
+                                testParameters.MaxRecoil,
+                                testParameters.MinVelocity,
+                                testParameters.MinEffectiveRange,
+                                testParameters.ImpactAngle,
+                                testParameters.SabotAngleMultiplier,
+                                testParameters.NonSabotAngleMultiplier,
+                                ac,
+                                testParameters.DamageType,
+                                testParameters.FragConeAngle,
+                                testParameters.FragAngleMultiplier,
+                                testParameters.MinDisruptor,
+                                testParameters.ArmorScheme,
+                                testParameters.TestType,
+                                testParameters.TestInterval,
+                                testParameters.StoragePerVolume,
+                                testParameters.StoragePerCost,
+                                testParameters.EnginePpm,
+                                testParameters.EnginePpv,
+                                testParameters.EnginePpc,
+                                testParameters.EngineUsesFuel,
+                                testParameters.FiringPieceIsDif,
+                                testParameters.GunUsesRecoilAbsorbers,
+                                testParameters.MaxInaccuracy,
+                                testParameters.RateOfFireRpm,
+                                testParameters.LimitBarrelLength,
+                                testParameters.MaxBarrelLength,
+                                testParameters.BarrelLengthLimitType,
+                                testParameters.BarrelLengthHardLimit,
+                                testParameters.VerboseOutputIsChecked,
+                                testParameters.RawNumberOutputIsChecked,
+                                testParameters.ColumnDelimiter
                                 );
                             // Shared merged-results dictionary, one entry per LoaderBracket
                             Dictionary<LoaderBracket, Shell> finalShells = [];

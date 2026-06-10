@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net.WebSockets;
 using System.Runtime.CompilerServices;
 
 [assembly: InternalsVisibleTo("ApsCalcUITests")]
@@ -108,6 +109,7 @@ namespace ApsCalcUI
         /// <param name="maxInaccuracy">Max allowed inaccuracy within barrel length limits</param>
         /// <param name="rateOfFireRpm">Rate of fire in rounds per minute</param>
         /// <param name="limitBarrelLength">Whether to limit max barrel length</param>
+        /// <param name="barrelLengthHardLimit">Whether barrel length limit is a hard DQ or merely prompts dividing DPS by impact area</param>
         /// <param name="maxBarrelLength">Max barrel length in m or calibers</param>
         /// <param name="barrelLengthLimitType">Whether to limit barrel length by m or calibers (multiples of gauge)</param>
         /// <param name="verboseOutputIsChecked">Whether to show volume and cost numbers for debugging/details</param>
@@ -160,6 +162,7 @@ namespace ApsCalcUI
             bool limitBarrelLength,
             float maxBarrelLength,
             BarrelLengthLimit barrelLengthLimitType,
+            bool barrelLengthHardLimit,
             bool verboseOutputIsChecked,
             bool rawNumberOutputIsChecked,
             char columnDelimiter
@@ -223,12 +226,14 @@ namespace ApsCalcUI
 
             if (LimitBarrelLength)
             {
+                // Limit by barrel length for full propellant burn
                 MaxGP = MathF.Min(maxGPInput, MaxBarrelLengthInM / 2.2f / MathF.Pow(Gauge / 1000f, 0.55f));
             }
             else
             {
                 MaxGP = MaxGPInput;
             }
+            BarrelLengthHardLimit = barrelLengthHardLimit;
             VerboseOutputIsChecked = verboseOutputIsChecked;
             RawNumberOutputIsChecked = rawNumberOutputIsChecked;
             ColumnDelimiter = columnDelimiter;
@@ -299,6 +304,7 @@ namespace ApsCalcUI
         public float MaxBarrelLengthInM { get; }
         public float MaxBarrelLengthInCalibers { get; }
         public BarrelLengthLimit BarrelLengthLimitType { get; }
+        public bool BarrelLengthHardLimit { get; }
         public bool VerboseOutputIsChecked { get; }
         public bool RawNumberOutputIsChecked { get; }
         public char ColumnDelimiter { get; }
@@ -472,6 +478,7 @@ namespace ApsCalcUI
                 shellUnderTesting.CalculateRecoil();
                 bool lengthWithinBounds = true;
                 if (LimitBarrelLength
+                    && BarrelLengthHardLimit
                     && shellUnderTesting.ProjectileLength
                         > shellUnderTesting.CalculateMaxProjectileLengthForInaccuracy(MaxBarrelLengthInM, MaxInaccuracy))
                 {
@@ -498,7 +505,7 @@ namespace ApsCalcUI
                     float maxDrawForRecoil = maxCasingDrawForRecoil + maxProjectileDrawForRecoil;
                     maxDraw = MathF.Min(maxDraw, maxDrawForRecoil);
                     // Limit by inaccuracy
-                    if (!shellUnderTesting.GunUsesRecoilAbsorbers)
+                    if (!shellUnderTesting.GunUsesRecoilAbsorbers && LimitBarrelLength && BarrelLengthHardLimit)
                     {
                         maxDraw = MathF.Min(maxDraw, shellUnderTesting.CalculateMaxDrawForInaccuracy(MaxBarrelLengthInM, MaxInaccuracy, shellUnderTesting.MaxDrawCasing));
                     }
@@ -530,8 +537,18 @@ namespace ApsCalcUI
                             shellUnderTesting.CalculateVariableVolumesAndCosts(TestIntervalSeconds, StoragePerVolume, StoragePerCost);
 
                             // Determine which "DPS Per" dictionary will be used for testing
-                            Dictionary<DamageType, float> referenceDict = TestType == TestType.DpsPerVolume ?
-                                shellUnderTesting.DpsPerVolumeDict : shellUnderTesting.DpsPerCostDict;
+                            Dictionary<DamageType, float> referenceDict;
+                            if (LimitBarrelLength && !BarrelLengthHardLimit)
+                            {
+                                referenceDict = TestType == TestType.DpsPerVolume ?
+                                    shellUnderTesting.DpsPerVolumePerAreaDict : shellUnderTesting.DpsPerCostPerAreaDict;
+                            }
+                            else
+                            {
+                                referenceDict = TestType == TestType.DpsPerVolume ?
+                                    shellUnderTesting.DpsPerVolumeDict : shellUnderTesting.DpsPerCostDict;
+                            }
+
                             // Determine optimal rail draw
                             float optimalDraw = maxDraw > 0 ?
                                 CalculateOptimalRailDraw(shellUnderTesting, maxDraw, minDraw, referenceDict)
@@ -603,22 +620,32 @@ namespace ApsCalcUI
                                 float maxCasingRecoilBelt = maxCasingDrawForRecoilBelt * shellUnderTestingBelt.RGCasingFeltRecoilMultiplier;
                                 float maxProjectileDrawForRecoilBelt = maxRailRecoilBelt - maxCasingRecoilBelt;
                                 maxDrawBelt = MathF.Min(maxDrawBelt, maxCasingDrawForRecoilBelt + maxProjectileDrawForRecoilBelt);
-                                if (!shellUnderTestingBelt.GunUsesRecoilAbsorbers)
+                                if (!shellUnderTestingBelt.GunUsesRecoilAbsorbers && LimitBarrelLength && BarrelLengthHardLimit)
                                     maxDrawBelt = MathF.Min(maxDrawBelt,
                                         shellUnderTestingBelt.CalculateMaxDrawForInaccuracy(MaxBarrelLengthInM, MaxInaccuracy, shellUnderTestingBelt.MaxDrawCasing));
-                                maxDrawBelt = MathF.Floor(maxDrawBelt);
 
                                 float minVelocityBelt = MathF.Max(MinVelocityInput,
                                     TargetArmorScheme.CalculateMinVelocityToPenetrate(shellUnderTestingBelt, ImpactAngleFromPerpendicularDegrees));
                                 float minDrawBelt = shellUnderTestingBelt.CalculateMinDrawForVelocityAndRange(minVelocityBelt, MinEffectiveRangeInput);
+
+                                maxDrawBelt = MathF.Floor(maxDrawBelt);
                                 minDrawBelt = MathF.Ceiling(minDrawBelt);
 
                                 if (maxDrawBelt >= minDrawBelt)
                                 {
                                     // Binary search to find optimal draw without testing every value
                                     // Determine which "DPS Per" dictionary will be used for testing
-                                    Dictionary<DamageType, float> referenceDictBelt = TestType == TestType.DpsPerVolume ?
-                                        shellUnderTestingBelt.DpsPerVolumeDict : shellUnderTestingBelt.DpsPerCostDict;
+                                    Dictionary<DamageType, float> referenceDictBelt;
+                                    if (!BarrelLengthHardLimit && LimitBarrelLength)
+                                    {
+                                        referenceDictBelt = TestType == TestType.DpsPerVolume ?
+                                            shellUnderTestingBelt.DpsPerVolumePerAreaDict : shellUnderTestingBelt.DpsPerCostPerAreaDict;
+                                    }
+                                    else
+                                    {
+                                        referenceDictBelt = TestType == TestType.DpsPerVolume ?
+                                            shellUnderTestingBelt.DpsPerVolumeDict : shellUnderTestingBelt.DpsPerCostDict;
+                                    }
                                     optimalDraw = maxDrawBelt > 0 ?
                                         CalculateOptimalRailDraw(shellUnderTestingBelt, maxDrawBelt, minDrawBelt, referenceDictBelt)
                                         : 0;
@@ -628,17 +655,34 @@ namespace ApsCalcUI
                                         DamageType, TargetAC, TestIntervalSeconds, StoragePerVolume, StoragePerCost,
                                         EnginePpm, EnginePpv, EnginePpc, EngineUsesFuel, TargetArmorScheme,
                                         ImpactAngleFromPerpendicularDegrees);
+                                    if (LimitBarrelLength && !BarrelLengthHardLimit)
+                                    {
+                                        shellUnderTestingBelt.CalculateDpsPerAreaByType(MaxBarrelLengthInM, MinEffectiveRangeInput);
+                                    }
 
                                     if (TryGetBracket(shellUnderTestingBelt.TotalLength, LoaderType.Belt, out LoaderBracket beltBracket))
                                     {
                                         // No incumbent yet for this bracket => any feasible shell wins.
-                                        float incumbentScoreBelt = TopShells.TryGetValue(beltBracket, out Shell incumbentBelt)
-                                            ? (TestType == TestType.DpsPerVolume
-                                                ? incumbentBelt.DpsPerVolumeDict[DamageType]
-                                                : incumbentBelt.DpsPerCostDict[DamageType])
-                                            : float.NegativeInfinity;
+                                        float incumbentScoreBelt;
+                                        if (LimitBarrelLength && !BarrelLengthHardLimit)
+                                        {
+                                            incumbentScoreBelt = TopShells.TryGetValue(beltBracket, out Shell incumbentBelt)
+                                                ? (TestType == TestType.DpsPerVolume
+                                                    ? incumbentBelt.DpsPerVolumePerAreaDict[DamageType]
+                                                    : incumbentBelt.DpsPerCostPerAreaDict[DamageType])
+                                                : float.NegativeInfinity;
+                                        }
+                                        else
+                                        {
+                                            incumbentScoreBelt = TopShells.TryGetValue(beltBracket, out Shell incumbentBelt)
+                                                ? (TestType == TestType.DpsPerVolume
+                                                    ? incumbentBelt.DpsPerVolumeDict[DamageType]
+                                                    : incumbentBelt.DpsPerCostDict[DamageType])
+                                                : float.NegativeInfinity;
+                                        }
                                         if (referenceDictBelt[DamageType] > incumbentScoreBelt)
                                         {
+                                            shellUnderTestingBelt.CalculateInaccuracyAtBarrelLength(MaxBarrelLengthInM, MinEffectiveRangeInput);
                                             TopShells[beltBracket] = shellUnderTestingBelt;
                                         }
                                     }
@@ -687,6 +731,10 @@ namespace ApsCalcUI
                 EngineUsesFuel,
                 TargetArmorScheme,
                 ImpactAngleFromPerpendicularDegrees);
+            if (LimitBarrelLength && !BarrelLengthHardLimit)
+            {
+                shellUnderTesting.CalculateDpsPerAreaByType(MaxBarrelLengthInM, MinEffectiveRangeInput);
+            }
 
             LoaderType loaderType = FiringPieceIsDif ? LoaderType.Dif : LoaderType.Regular;
             if (!TryGetBracket(shellUnderTesting.TotalLength, loaderType, out LoaderBracket bracket))
@@ -694,13 +742,27 @@ namespace ApsCalcUI
                 return; // length outside any tracked bracket
             }
 
-            float incumbentScore = TopShells.TryGetValue(bracket, out Shell incumbent)
-                ? (TestType == TestType.DpsPerVolume
-                    ? incumbent.DpsPerVolumeDict[DamageType]
-                    : incumbent.DpsPerCostDict[DamageType])
-                : float.NegativeInfinity;
+            float incumbentScore;
+            if (LimitBarrelLength && !BarrelLengthHardLimit)
+            {
+                incumbentScore = TopShells.TryGetValue(bracket, out Shell incumbent)
+                    ? (TestType == TestType.DpsPerVolume
+                        ? incumbent.DpsPerVolumePerAreaDict[DamageType]
+                        : incumbent.DpsPerCostPerAreaDict[DamageType])
+                    : float.NegativeInfinity;
+            }
+            else
+            {
+                incumbentScore = TopShells.TryGetValue(bracket, out Shell incumbent)
+                    ? (TestType == TestType.DpsPerVolume
+                        ? incumbent.DpsPerVolumeDict[DamageType]
+                        : incumbent.DpsPerCostDict[DamageType])
+                    : float.NegativeInfinity;
+            }
+
             if (referenceDict[DamageType] > incumbentScore)
             {
+                shellUnderTesting.CalculateInaccuracyAtBarrelLength(MaxBarrelLengthInM, MinEffectiveRangeInput);
                 TopShells[bracket] = shellUnderTesting;
             }
         }
@@ -745,7 +807,7 @@ namespace ApsCalcUI
                     int maxVariableModuleCount = 20 - (int)shellUnderTesting.ModuleCountTotal;
                     float maxTotalLengthForBracket = MathF.Min(MaxShellLength, bracket.MaxLengthMMInclusive);
                     float maxProjectileLengthForBracket = maxTotalLengthForBracket;
-                    if (LimitBarrelLength)
+                    if (LimitBarrelLength && BarrelLengthHardLimit)
                     {
                         maxProjectileLengthForBracket = MathF.Min(
                             maxProjectileLengthForBracket,
@@ -959,9 +1021,9 @@ namespace ApsCalcUI
             shellUnderTesting.CalculateDamageModifierByType(DamageType.Kinetic);
             float minVelocity = MathF.Max(MinVelocityInput, TargetArmorScheme.CalculateMinVelocityToPenetrate(shellUnderTesting, ImpactAngleFromPerpendicularDegrees));
             float minTotalRecoil = shellUnderTesting.CalculateMinRecoilForVelocityAndRange(minVelocity, MinEffectiveRangeInput);
-            float maxFeltRecoil = GunUsesRecoilAbsorbers ?
-                MaxRecoilInput
-                : MathF.Min(MaxRecoilInput, shellUnderTesting.CalculateMaxFeltRecoilForInaccuracy(MaxBarrelLengthInM, MaxInaccuracy));
+            float maxFeltRecoil = (!GunUsesRecoilAbsorbers && LimitBarrelLength && BarrelLengthHardLimit)
+                ? MathF.Min(MaxRecoilInput, shellUnderTesting.CalculateMaxFeltRecoilForInaccuracy(MaxBarrelLengthInM, MaxInaccuracy))
+                : MaxRecoilInput;
 
             float slotBudget = 20f - shellUnderTesting.ModuleCountTotal
                              + shellUnderTesting.GPCasingCount
@@ -997,7 +1059,7 @@ namespace ApsCalcUI
             Dictionary<DamageType, float> referenceDict)
         {
             // Draw filtering must be done before reaching this point
-            ArgumentOutOfRangeException.ThrowIfLessThan(maxDraw, minDraw);
+            ArgumentOutOfRangeException.ThrowIfLessThan(maxDraw, minDraw, "Min draw cannot be greater than max draw");
 
             if (DamageType != DamageType.Kinetic)
             {
@@ -1034,6 +1096,10 @@ namespace ApsCalcUI
                         EngineUsesFuel,
                         TargetArmorScheme,
                         ImpactAngleFromPerpendicularDegrees);
+                    if (LimitBarrelLength && !BarrelLengthHardLimit)
+                    {
+                        shellUnderTesting.CalculateDpsPerAreaByType(MaxBarrelLengthInM, MinEffectiveRangeInput);
+                    }
                     float score = referenceDict[DamageType];
                     float denominator = TestType == TestType.DpsPerVolume
                         ? shellUnderTesting.VolumePerLoader
@@ -1096,10 +1162,10 @@ namespace ApsCalcUI
                 // Find best candidate
                 float optimalDraw = minDraw;
                 float bestScore = float.NegativeInfinity;
-                foreach(float candidate in drawCandidates)
+                foreach (float candidate in drawCandidates)
                 {
                     float score = Evaluate(candidate).score;
-                    if(score > bestScore || (score >= bestScore && candidate < optimalDraw))
+                    if (score > bestScore || (score >= bestScore && candidate < optimalDraw))
                     {
                         optimalDraw = candidate;
                         bestScore = score;
@@ -1138,6 +1204,11 @@ namespace ApsCalcUI
                 EngineUsesFuel,
                 TargetArmorScheme,
                 ImpactAngleFromPerpendicularDegrees);
+            if (LimitBarrelLength && !BarrelLengthHardLimit)
+            {
+                shellUnderTesting.CalculateDpsPerAreaByType(MaxBarrelLengthInM, MinEffectiveRangeInput);
+            }
+
             if (referenceDict[DamageType] == 0)
             {
                 return 0;
@@ -1170,6 +1241,10 @@ namespace ApsCalcUI
                     EngineUsesFuel,
                     TargetArmorScheme,
                     ImpactAngleFromPerpendicularDegrees);
+                if (LimitBarrelLength && !BarrelLengthHardLimit)
+                {
+                    shellUnderTesting.CalculateDpsPerAreaByType(MaxBarrelLengthInM, MinEffectiveRangeInput);
+                }
                 midRangeScore = referenceDict[DamageType];
 
                 shellUnderTesting.RailDraw = midRangePlus;
@@ -1185,6 +1260,10 @@ namespace ApsCalcUI
                     EngineUsesFuel,
                     TargetArmorScheme,
                     ImpactAngleFromPerpendicularDegrees);
+                if (LimitBarrelLength && !BarrelLengthHardLimit)
+                {
+                    shellUnderTesting.CalculateDpsPerAreaByType(MaxBarrelLengthInM, MinEffectiveRangeInput);
+                }
                 midRangePlusScore = referenceDict[DamageType];
 
                 if (midRangePlusScore == 0)
@@ -1202,6 +1281,49 @@ namespace ApsCalcUI
                     optimalDraw = midRangePlus;
                 }
             }
+
+            // minDraw never gets checked above
+            shellUnderTesting.RailDraw = optimalDraw;
+            shellUnderTesting.CalculateDpsByType(
+                DamageType,
+                TargetAC,
+                TestIntervalSeconds,
+                StoragePerVolume,
+                StoragePerCost,
+                EnginePpm,
+                EnginePpv,
+                EnginePpc,
+                EngineUsesFuel,
+                TargetArmorScheme,
+                ImpactAngleFromPerpendicularDegrees);
+            if (LimitBarrelLength && !BarrelLengthHardLimit)
+            {
+                shellUnderTesting.CalculateDpsPerAreaByType(MaxBarrelLengthInM, MinEffectiveRangeInput);
+            }
+            float optimalScore = referenceDict[DamageType];
+
+            shellUnderTesting.RailDraw = minDraw;
+            shellUnderTesting.CalculateDpsByType(
+                DamageType,
+                TargetAC,
+                TestIntervalSeconds,
+                StoragePerVolume,
+                StoragePerCost,
+                EnginePpm,
+                EnginePpv,
+                EnginePpc,
+                EngineUsesFuel,
+                TargetArmorScheme,
+                ImpactAngleFromPerpendicularDegrees);
+            if (LimitBarrelLength && !BarrelLengthHardLimit)
+            {
+                shellUnderTesting.CalculateDpsPerAreaByType(MaxBarrelLengthInM, MinEffectiveRangeInput);
+            }
+            if (referenceDict[DamageType] >= optimalScore)
+            {
+                optimalDraw = minDraw;
+            }
+
             return optimalDraw;
         }
 
@@ -1256,6 +1378,7 @@ namespace ApsCalcUI
             shellUnderTesting.CalculateVelocityModifier();
             shellUnderTesting.CalculateDamageModifierByType(DamageType);
             shellUnderTesting.CalculateMaxDraw();
+            shellUnderTesting.CalculateRecoil(); // GPRecoil is 0 on a fresh shell until calculated
 
             // Physical draw limit
             float maxDraw = MathF.Min(shellUnderTesting.MaxDrawShell, MaxDrawInput);
@@ -1267,7 +1390,7 @@ namespace ApsCalcUI
             float maxDrawForRecoil = maxCasingDrawForRecoil + maxProjectileDrawForRecoil;
             maxDraw = MathF.Min(maxDraw, maxDrawForRecoil);
             // Limit by inaccuracy
-            if (!shellUnderTesting.GunUsesRecoilAbsorbers)
+            if (!shellUnderTesting.GunUsesRecoilAbsorbers && LimitBarrelLength && BarrelLengthHardLimit)
             {
                 maxDraw = MathF.Min(maxDraw, shellUnderTesting.CalculateMaxDrawForInaccuracy(MaxBarrelLengthInM, MaxInaccuracy, shellUnderTesting.MaxDrawCasing));
             }
@@ -1299,9 +1422,17 @@ namespace ApsCalcUI
                     shellUnderTesting.CalculateVariableVolumesAndCosts(TestIntervalSeconds, StoragePerVolume, StoragePerCost);
 
                     // Determine which "DPS Per" dictionary will be used for testing
-                    Dictionary<DamageType, float> referenceDict = TestType == TestType.DpsPerVolume ?
-                        shellUnderTesting.DpsPerVolumeDict : shellUnderTesting.DpsPerCostDict;
-
+                    Dictionary<DamageType, float> referenceDict;
+                    if (LimitBarrelLength && !BarrelLengthHardLimit)
+                    {
+                        referenceDict = TestType == TestType.DpsPerVolume ?
+                            shellUnderTesting.DpsPerVolumePerAreaDict : shellUnderTesting.DpsPerCostPerAreaDict;
+                    }
+                    else
+                    {
+                        referenceDict = TestType == TestType.DpsPerVolume ?
+                            shellUnderTesting.DpsPerVolumeDict : shellUnderTesting.DpsPerCostDict;
+                    }
                     // Determine optimal rail draw
                     float optimalDraw = maxDraw > 0 ?
                         CalculateOptimalRailDraw2(shellUnderTesting, maxDraw, minDraw, referenceDict)
@@ -1319,6 +1450,10 @@ namespace ApsCalcUI
                         EngineUsesFuel,
                         TargetArmorScheme,
                         ImpactAngleFromPerpendicularDegrees);
+                    if (LimitBarrelLength && !BarrelLengthHardLimit)
+                    {
+                        shellUnderTesting.CalculateDpsPerAreaByType(MaxBarrelLengthInM, MinEffectiveRangeInput);
+                    }
                     score = referenceDict[DamageType];
                 }
             }
@@ -1337,6 +1472,7 @@ namespace ApsCalcUI
 
             shell.CalculateLengths();
             shell.CalculateMaxDraw();
+            shell.CalculateRecoil(); // GPRecoil is stale from the previous (gp, rg) point until recalculated
 
             float maxDraw = MathF.Min(shell.MaxDrawShell, MaxDrawInput);
             float maxRailRecoil = MaxRecoilInput - shell.GPRecoil;
@@ -1344,7 +1480,7 @@ namespace ApsCalcUI
             float maxCasingRecoil = maxCasingDrawForRecoil * shell.RGCasingFeltRecoilMultiplier;
             float maxProjectileDrawForRecoil = maxRailRecoil - maxCasingRecoil;
             maxDraw = MathF.Min(maxDraw, maxCasingDrawForRecoil + maxProjectileDrawForRecoil);
-            if (!shell.GunUsesRecoilAbsorbers)
+            if (!shell.GunUsesRecoilAbsorbers && LimitBarrelLength && BarrelLengthHardLimit)
                 maxDraw = MathF.Min(maxDraw, shell.CalculateMaxDrawForInaccuracy(MaxBarrelLengthInM, MaxInaccuracy, shell.MaxDrawCasing));
 
             float minDraw = shell.CalculateMinDrawForVelocityAndRange(minVelocity, MinEffectiveRangeInput);
@@ -1372,8 +1508,17 @@ namespace ApsCalcUI
             shell.CalculateLoaderVolumeAndCost();
             shell.CalculateVariableVolumesAndCosts(TestIntervalSeconds, StoragePerVolume, StoragePerCost);
 
-            Dictionary<DamageType, float> referenceDict = TestType == TestType.DpsPerVolume
-                ? shell.DpsPerVolumeDict : shell.DpsPerCostDict;
+            Dictionary<DamageType, float> referenceDict;
+            if (LimitBarrelLength && !BarrelLengthHardLimit)
+            {
+                referenceDict = TestType == TestType.DpsPerVolume
+                    ? shell.DpsPerVolumePerAreaDict : shell.DpsPerCostPerAreaDict;
+            }
+            else
+            {
+                referenceDict = TestType == TestType.DpsPerVolume
+                    ? shell.DpsPerVolumeDict : shell.DpsPerCostDict;
+            }
 
             shell.RailDraw = maxDraw > 0
                 ? CalculateOptimalRailDraw2(shell, maxDraw, minDraw, referenceDict) : 0;
@@ -1382,6 +1527,10 @@ namespace ApsCalcUI
                 EnginePpm, EnginePpv, EnginePpc, EngineUsesFuel, TargetArmorScheme,
                 ImpactAngleFromPerpendicularDegrees);
             shell.CalculateEffectiveRange();
+            if (LimitBarrelLength && !BarrelLengthHardLimit)
+            {
+                shell.CalculateDpsPerAreaByType(MaxBarrelLengthInM, MinEffectiveRangeInput);
+            }
 
             return referenceDict[DamageType];
         }
@@ -1411,7 +1560,7 @@ namespace ApsCalcUI
             float minGP = MathF.Max(0f, MathF.Max(minGPForLength, minGPForRecoil));
             float maxGP = MathF.Min(maxGPCap, MathF.Min(maxGPForLength, maxGPForRecoil));
 
-            return ((int)MathF.Floor(minGP / gridSpacing), (int)MathF.Ceiling(maxGP / gridSpacing));
+            return ((int)MathF.Ceiling(minGP / gridSpacing), (int)MathF.Ceiling(maxGP / gridSpacing));
         }
 
         internal static HashSet<Neighborhood> FindCoarsePeaks(
@@ -1564,9 +1713,9 @@ namespace ApsCalcUI
                 float gpRecoilPerCasing = shellUnderTesting.GPRecoilPerCasing;
 
                 float maxCasingCountForModule = 20f - shellUnderTesting.ModuleCountTotal;
-                float maxFeltRecoil = GunUsesRecoilAbsorbers ?
-                    MaxRecoilInput
-                    : MathF.Min(MaxRecoilInput, shellUnderTesting.CalculateMaxFeltRecoilForInaccuracy(MaxBarrelLengthInM, MaxInaccuracy));
+                float maxFeltRecoil = (!GunUsesRecoilAbsorbers && LimitBarrelLength && BarrelLengthHardLimit)
+                    ? MathF.Min(MaxRecoilInput, shellUnderTesting.CalculateMaxFeltRecoilForInaccuracy(MaxBarrelLengthInM, MaxInaccuracy))
+                    : MaxRecoilInput;
 
                 float feltRecoilPerCasing = shellUnderTesting.DrawPerProjectileModule
                     * shellUnderTesting.RGCasingDrawMultiplier
@@ -1625,6 +1774,7 @@ namespace ApsCalcUI
                     if (bestScore > incumbentScore)
                     {
                         Shell winner = ShellTest2(headForScoring, varCountsForScoring, gp, rg, modConfig.Bracket).shell;
+                        winner.CalculateInaccuracyAtBarrelLength(MaxBarrelLengthInM, MinEffectiveRangeInput);
                         TopShells[modConfig.Bracket] = winner;
                     }
                 }
@@ -1858,8 +2008,12 @@ namespace ApsCalcUI
             writer.WriteLine("Min length (mm)" + ColumnDelimiter + MinShellLength);
             writer.WriteLine("Max length (mm)" + ColumnDelimiter + MaxShellLength);
             writer.WriteLine("Min velocity (m/s)" + ColumnDelimiter + MinVelocityInput);
-            writer.WriteLine("Min effective range (m)" + ColumnDelimiter + MinEffectiveRangeInput);
-            if (LimitBarrelLength)
+            if (!LimitBarrelLength || BarrelLengthHardLimit)
+            {
+                // Min effective range becomes engagement range for soft barrel length limit tests
+                writer.WriteLine("Min effective range (m)" + ColumnDelimiter + MinEffectiveRangeInput);
+            }
+            if (LimitBarrelLength && BarrelLengthHardLimit)
             {
                 writer.WriteLine("Max inaccuracy (°)" + ColumnDelimiter + MaxInaccuracy);
                 if (BarrelLengthLimitType == BarrelLengthLimit.Calibers)
@@ -1869,6 +2023,19 @@ namespace ApsCalcUI
                 else if (BarrelLengthLimitType == BarrelLengthLimit.FixedLength)
                 {
                     writer.WriteLine("Max barrel length (m)" + ColumnDelimiter + MaxBarrelLengthInM);
+                }
+            }
+            else if (LimitBarrelLength && !BarrelLengthHardLimit)
+            {
+                writer.WriteLine("Soft barrel length limit");
+                writer.WriteLine("Dividing DPS by impact area at " + MinEffectiveRangeInput + " m");
+                if (BarrelLengthLimitType == BarrelLengthLimit.Calibers)
+                {
+                    writer.WriteLine("Max barrel length for propellant burn (calibers)" + ColumnDelimiter + MaxBarrelLengthInCalibers);
+                }
+                else
+                {
+                    writer.WriteLine("Max barrel length for propellant burn (m)" + ColumnDelimiter + MaxBarrelLengthInM);
                 }
             }
             writer.WriteLine("Test interval (min)" + ColumnDelimiter + TestIntervalMinutes);
@@ -1987,6 +2154,9 @@ namespace ApsCalcUI
                 {
                     // Calculate barrel lengths
                     topShell.CalculateRequiredBarrelLengths(MaxInaccuracy);
+                    float shellMaxBarrelLengthInM = BarrelLengthLimitType == BarrelLengthLimit.Calibers
+                        ? MaxBarrelLengthInCalibers * topShell.Gauge / 1000f
+                        : MaxBarrelLengthInM;
                     if (dtToShow[DamageType.Disruptor]
                         || dtToShow[DamageType.EMP]
                         || dtToShow[DamageType.MD]
@@ -2016,7 +2186,16 @@ namespace ApsCalcUI
                                 EngineUsesFuel,
                                 TargetArmorScheme,
                                 ImpactAngleFromPerpendicularDegrees);
+                            if (LimitBarrelLength && !BarrelLengthHardLimit)
+                            {
+                                topShell.CalculateDpsPerAreaByType(shellMaxBarrelLengthInM, MinEffectiveRangeInput);
+                            }
                         }
+                    }
+                    if (LimitBarrelLength)
+                    {
+                        // Refresh inaccuracy stat (or calculate for first time if using hard length limits)
+                        topShell.CalculateInaccuracyAtBarrelLength(shellMaxBarrelLengthInM, MinEffectiveRangeInput);
                     }
                     topShell.GetModuleCounts();
                 }
@@ -2197,6 +2376,22 @@ namespace ApsCalcUI
                 }
                 writer.WriteLine(string.Join(ColumnDelimiter, inaccuracyModifierList));
 
+                if (LimitBarrelLength && BarrelLengthLimitType == BarrelLengthLimit.Calibers)
+                {
+                    // Limit in calibers translates to a different length in m for each gauge
+                    List<string> maxBarrelLengthList =
+                        [
+                        BarrelLengthHardLimit
+                            ? "Max barrel length (m)"
+                            : "Max barrel length for propellant burn (m)"
+                        ];
+                    foreach (Shell topShell in bracketWinners)
+                    {
+                        AddValueToList(maxBarrelLengthList, MaxBarrelLengthInCalibers * topShell.Gauge / 1000f, 1);
+                    }
+                    writer.WriteLine(string.Join(ColumnDelimiter, maxBarrelLengthList));
+                }
+
                 List<string> barrelLengthInaccuracyList =
                     [
                     "Barrel length for inaccuracy (m)"
@@ -2218,6 +2413,19 @@ namespace ApsCalcUI
                         AddValueToList(barrelLengthPropellantBurnList, topShell.BarrelLengthForPropellant, 1);
                     }
                     writer.WriteLine(string.Join(ColumnDelimiter, barrelLengthPropellantBurnList));
+                }
+
+                if (LimitBarrelLength)
+                {
+                    List<string> inaccuracyAtLengthList =
+                        [
+                        "Inaccuracy at max barrel length (°)"
+                        ];
+                    foreach (Shell topShell in bracketWinners)
+                    {
+                        AddValueToList(inaccuracyAtLengthList, topShell.InaccuracyAtBarrelLengthLimit, 2);
+                    }
+                    writer.WriteLine(string.Join(ColumnDelimiter, inaccuracyAtLengthList));
                 }
 
                 foreach (DamageType dt in dtToShow.Keys)
@@ -2441,6 +2649,46 @@ namespace ApsCalcUI
                         writer.WriteLine(string.Join(ColumnDelimiter, dpsPerCostList));
                     }
                 }
+
+                if (LimitBarrelLength && !BarrelLengthHardLimit)
+                {
+                    List<string> impactAreaList =
+                        [
+                            "Impact area (m^2)"
+                        ];
+                    foreach (Shell topShell in bracketWinners)
+                    {
+                        impactAreaList.Add(topShell.ImpactArea.ToString());
+                    }
+                    writer.WriteLine(string.Join(ColumnDelimiter, impactAreaList));
+
+                    foreach (DamageType dt in dtToShow.Keys)
+                    {
+                        if (dtToShow[dt])
+                        {
+                            List<string> dpsPerVolumeList =
+                            [
+                                (DamageType)(int)dt + " DPS per volume per area"
+                            ];
+                            foreach (Shell topShell in bracketWinners)
+                            {
+                                dpsPerVolumeList.Add(topShell.DpsPerVolumePerAreaDict[dt].ToString());
+                            }
+                            writer.WriteLine(string.Join(ColumnDelimiter, dpsPerVolumeList));
+
+                            List<string> dpsPerCostList =
+                            [
+                                (DamageType)(int)dt + " DPS per cost per area"
+                            ];
+                            foreach (Shell topShell in bracketWinners)
+                            {
+                                dpsPerCostList.Add(topShell.DpsPerCostPerAreaDict[dt].ToString());
+                            }
+                            writer.WriteLine(string.Join(ColumnDelimiter, dpsPerCostList));
+                        }
+                    }
+                }
+
 
                 if (VerboseOutputIsChecked)
                 {

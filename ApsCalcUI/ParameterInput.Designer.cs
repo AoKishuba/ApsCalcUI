@@ -30,6 +30,7 @@ namespace ApsCalcUI
         private void InitializeComponent()
         {
             components = new System.ComponentModel.Container();
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(ParameterInput));
             ToolTip = new System.Windows.Forms.ToolTip(components);
             BarrelCountDD = new System.Windows.Forms.ComboBox();
             HeadModulesLabel = new System.Windows.Forms.Label();
@@ -103,6 +104,8 @@ namespace ApsCalcUI
             RawNumberOutputCB = new System.Windows.Forms.CheckBox();
             CasingIncrementUD = new System.Windows.Forms.NumericUpDown();
             VerboseOutputCB = new System.Windows.Forms.CheckBox();
+            UseBruteForceCB = new System.Windows.Forms.CheckBox();
+            BarrelLengthHardLimitCB = new System.Windows.Forms.CheckBox();
             BarrelCountLabel = new System.Windows.Forms.Label();
             MinGaugeLabel = new System.Windows.Forms.Label();
             MaxGaugeLabel = new System.Windows.Forms.Label();
@@ -164,7 +167,7 @@ namespace ApsCalcUI
             RegularClipCountLabel = new System.Windows.Forms.Label();
             BeltfedClipCountLabel = new System.Windows.Forms.Label();
             CasingIncrementLabel = new System.Windows.Forms.Label();
-            UseBruteForceCB = new System.Windows.Forms.CheckBox();
+            BarrelLengthLimitPanel = new System.Windows.Forms.Panel();
             ((System.ComponentModel.ISupportInitialize)MinGaugeUD).BeginInit();
             ((System.ComponentModel.ISupportInitialize)MaxGaugeUD).BeginInit();
             ((System.ComponentModel.ISupportInitialize)SolidBodyFixedUD).BeginInit();
@@ -213,6 +216,7 @@ namespace ApsCalcUI
             FragAnglePanel.SuspendLayout();
             RofRpmPanel.SuspendLayout();
             ClipCountPanel.SuspendLayout();
+            BarrelLengthLimitPanel.SuspendLayout();
             SuspendLayout();
             // 
             // ToolTip
@@ -271,7 +275,7 @@ namespace ApsCalcUI
             // 
             DamageTypeDD.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             DamageTypeDD.FormattingEnabled = true;
-            DamageTypeDD.Location = new System.Drawing.Point(504, 313);
+            DamageTypeDD.Location = new System.Drawing.Point(504, 306);
             DamageTypeDD.Name = "DamageTypeDD";
             DamageTypeDD.Size = new System.Drawing.Size(121, 23);
             DamageTypeDD.TabIndex = 23;
@@ -449,7 +453,7 @@ namespace ApsCalcUI
             // MaxRGUD
             // 
             MaxRGUD.DecimalPlaces = 2;
-            MaxRGUD.Location = new System.Drawing.Point(550, 64);
+            MaxRGUD.Location = new System.Drawing.Point(550, 39);
             MaxRGUD.Maximum = new decimal(new int[] { 19, 0, 0, 0 });
             MaxRGUD.Name = "MaxRGUD";
             MaxRGUD.Size = new System.Drawing.Size(65, 23);
@@ -847,7 +851,7 @@ namespace ApsCalcUI
             // 
             BarrelLengthLimitCB.AutoSize = true;
             BarrelLengthLimitCB.ForeColor = System.Drawing.SystemColors.ControlText;
-            BarrelLengthLimitCB.Location = new System.Drawing.Point(446, 278);
+            BarrelLengthLimitCB.Location = new System.Drawing.Point(11, 4);
             BarrelLengthLimitCB.Name = "BarrelLengthLimitCB";
             BarrelLengthLimitCB.Size = new System.Drawing.Size(137, 19);
             BarrelLengthLimitCB.TabIndex = 45;
@@ -861,16 +865,16 @@ namespace ApsCalcUI
             BarrelLengthLimitDD.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             BarrelLengthLimitDD.Enabled = false;
             BarrelLengthLimitDD.FormattingEnabled = true;
-            BarrelLengthLimitDD.Location = new System.Drawing.Point(648, 275);
+            BarrelLengthLimitDD.Location = new System.Drawing.Point(57, 24);
             BarrelLengthLimitDD.Name = "BarrelLengthLimitDD";
-            BarrelLengthLimitDD.Size = new System.Drawing.Size(121, 23);
+            BarrelLengthLimitDD.Size = new System.Drawing.Size(96, 23);
             BarrelLengthLimitDD.TabIndex = 46;
             ToolTip.SetToolTip(BarrelLengthLimitDD, "Select m to limit barrel length to a fixed length in m.\r\nSelect calibers to limit barrel length to a multiple of gauge.");
             // 
             // BarrelLengthLimitUD
             // 
             BarrelLengthLimitUD.Enabled = false;
-            BarrelLengthLimitUD.Location = new System.Drawing.Point(585, 275);
+            BarrelLengthLimitUD.Location = new System.Drawing.Point(0, 24);
             BarrelLengthLimitUD.Minimum = new decimal(new int[] { 2, 0, 0, 0 });
             BarrelLengthLimitUD.Name = "BarrelLengthLimitUD";
             BarrelLengthLimitUD.Size = new System.Drawing.Size(50, 23);
@@ -894,9 +898,10 @@ namespace ApsCalcUI
             // 
             MaxInaccUD.DecimalPlaces = 2;
             MaxInaccUD.Enabled = false;
-            MaxInaccUD.Increment = new decimal(new int[] { 1, 0, 0, 65536 });
+            MaxInaccUD.Increment = new decimal(new int[] { 1, 0, 0, 131072 });
             MaxInaccUD.Location = new System.Drawing.Point(550, 239);
             MaxInaccUD.Maximum = new decimal(new int[] { 5, 0, 0, 65536 });
+            MaxInaccUD.Minimum = new decimal(new int[] { 1, 0, 0, 131072 });
             MaxInaccUD.Name = "MaxInaccUD";
             MaxInaccUD.Size = new System.Drawing.Size(65, 23);
             MaxInaccUD.TabIndex = 50;
@@ -1068,7 +1073,7 @@ namespace ApsCalcUI
             // 
             CasingIncrementUD.DecimalPlaces = 2;
             CasingIncrementUD.Increment = new decimal(new int[] { 1, 0, 0, 131072 });
-            CasingIncrementUD.Location = new System.Drawing.Point(550, 39);
+            CasingIncrementUD.Location = new System.Drawing.Point(550, 64);
             CasingIncrementUD.Maximum = new decimal(new int[] { 1, 0, 0, 0 });
             CasingIncrementUD.Minimum = new decimal(new int[] { 1, 0, 0, 131072 });
             CasingIncrementUD.Name = "CasingIncrementUD";
@@ -1089,6 +1094,32 @@ namespace ApsCalcUI
             VerboseOutputCB.Text = "Verbose Output";
             ToolTip.SetToolTip(VerboseOutputCB, "Check to output detailed volume and cost statistics.");
             VerboseOutputCB.UseVisualStyleBackColor = true;
+            // 
+            // UseBruteForceCB
+            // 
+            UseBruteForceCB.AutoSize = true;
+            UseBruteForceCB.Location = new System.Drawing.Point(629, 555);
+            UseBruteForceCB.Name = "UseBruteForceCB";
+            UseBruteForceCB.Size = new System.Drawing.Size(123, 19);
+            UseBruteForceCB.TabIndex = 65;
+            UseBruteForceCB.Text = "Brute force testing";
+            ToolTip.SetToolTip(UseBruteForceCB, "Check to use old brute-force logic.\r\nVERY slow, especially for hybrid shells. Use only for debugging\r\nor if you suspect the new algorithm is missing something.");
+            UseBruteForceCB.UseVisualStyleBackColor = true;
+            // 
+            // BarrelLengthHardLimitCB
+            // 
+            BarrelLengthHardLimitCB.AutoSize = true;
+            BarrelLengthHardLimitCB.Checked = true;
+            BarrelLengthHardLimitCB.CheckState = System.Windows.Forms.CheckState.Checked;
+            BarrelLengthHardLimitCB.Enabled = false;
+            BarrelLengthHardLimitCB.ForeColor = System.Drawing.SystemColors.ControlText;
+            BarrelLengthHardLimitCB.Location = new System.Drawing.Point(11, 48);
+            BarrelLengthHardLimitCB.Name = "BarrelLengthHardLimitCB";
+            BarrelLengthHardLimitCB.Size = new System.Drawing.Size(139, 19);
+            BarrelLengthHardLimitCB.TabIndex = 48;
+            BarrelLengthHardLimitCB.Text = "Hard inaccuracy limit";
+            ToolTip.SetToolTip(BarrelLengthHardLimitCB, resources.GetString("BarrelLengthHardLimitCB.ToolTip"));
+            BarrelLengthHardLimitCB.UseVisualStyleBackColor = true;
             // 
             // BarrelCountLabel
             // 
@@ -1115,7 +1146,7 @@ namespace ApsCalcUI
             MaxGaugeLabel.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
             MaxGaugeLabel.AutoSize = true;
             MaxGaugeLabel.ForeColor = System.Drawing.SystemColors.ControlText;
-            MaxGaugeLabel.Location = new System.Drawing.Point(225, 25);
+            MaxGaugeLabel.Location = new System.Drawing.Point(236, 25);
             MaxGaugeLabel.Name = "MaxGaugeLabel";
             MaxGaugeLabel.Size = new System.Drawing.Size(29, 15);
             MaxGaugeLabel.TabIndex = 5;
@@ -1355,7 +1386,7 @@ namespace ApsCalcUI
             // 
             MaxRGLabel.AutoSize = true;
             MaxRGLabel.ForeColor = System.Drawing.SystemColors.ControlText;
-            MaxRGLabel.Location = new System.Drawing.Point(441, 68);
+            MaxRGLabel.Location = new System.Drawing.Point(441, 43);
             MaxRGLabel.Name = "MaxRGLabel";
             MaxRGLabel.Size = new System.Drawing.Size(91, 15);
             MaxRGLabel.TabIndex = 15;
@@ -1415,7 +1446,7 @@ namespace ApsCalcUI
             // 
             DamageTypeLabel.AutoSize = true;
             DamageTypeLabel.ForeColor = System.Drawing.SystemColors.ControlText;
-            DamageTypeLabel.Location = new System.Drawing.Point(446, 316);
+            DamageTypeLabel.Location = new System.Drawing.Point(446, 309);
             DamageTypeLabel.Name = "DamageTypeLabel";
             DamageTypeLabel.Size = new System.Drawing.Size(55, 15);
             DamageTypeLabel.TabIndex = 29;
@@ -1425,7 +1456,7 @@ namespace ApsCalcUI
             // 
             TestTypePanel.Controls.Add(PerCostRB);
             TestTypePanel.Controls.Add(PerVolumeRB);
-            TestTypePanel.Location = new System.Drawing.Point(682, 302);
+            TestTypePanel.Location = new System.Drawing.Point(682, 295);
             TestTypePanel.Name = "TestTypePanel";
             TestTypePanel.Size = new System.Drawing.Size(106, 48);
             TestTypePanel.TabIndex = 30;
@@ -1434,7 +1465,7 @@ namespace ApsCalcUI
             // 
             PerLabel.AutoSize = true;
             PerLabel.ForeColor = System.Drawing.SystemColors.ControlText;
-            PerLabel.Location = new System.Drawing.Point(629, 316);
+            PerLabel.Location = new System.Drawing.Point(629, 309);
             PerLabel.Name = "PerLabel";
             PerLabel.Size = new System.Drawing.Size(48, 15);
             PerLabel.TabIndex = 31;
@@ -1714,22 +1745,22 @@ namespace ApsCalcUI
             // 
             CasingIncrementLabel.AutoSize = true;
             CasingIncrementLabel.ForeColor = System.Drawing.SystemColors.ControlText;
-            CasingIncrementLabel.Location = new System.Drawing.Point(441, 43);
+            CasingIncrementLabel.Location = new System.Drawing.Point(441, 68);
             CasingIncrementLabel.Name = "CasingIncrementLabel";
             CasingIncrementLabel.Size = new System.Drawing.Size(100, 15);
             CasingIncrementLabel.TabIndex = 62;
             CasingIncrementLabel.Text = "Casing Increment";
             // 
-            // UseBruteForceCB
+            // BarrelLengthLimitPanel
             // 
-            UseBruteForceCB.AutoSize = true;
-            UseBruteForceCB.Location = new System.Drawing.Point(629, 555);
-            UseBruteForceCB.Name = "UseBruteForceCB";
-            UseBruteForceCB.Size = new System.Drawing.Size(123, 19);
-            UseBruteForceCB.TabIndex = 65;
-            UseBruteForceCB.Text = "Brute force testing";
-            ToolTip.SetToolTip(UseBruteForceCB, "Check to use old brute-force logic.\r\nVERY slow, especially for hybrid shells. Use only for debugging\r\nor if you suspect the new algorithm is missing something.");
-            UseBruteForceCB.UseVisualStyleBackColor = true;
+            BarrelLengthLimitPanel.Controls.Add(BarrelLengthHardLimitCB);
+            BarrelLengthLimitPanel.Controls.Add(BarrelLengthLimitUD);
+            BarrelLengthLimitPanel.Controls.Add(BarrelLengthLimitDD);
+            BarrelLengthLimitPanel.Controls.Add(BarrelLengthLimitCB);
+            BarrelLengthLimitPanel.Location = new System.Drawing.Point(629, 215);
+            BarrelLengthLimitPanel.Name = "BarrelLengthLimitPanel";
+            BarrelLengthLimitPanel.Size = new System.Drawing.Size(159, 68);
+            BarrelLengthLimitPanel.TabIndex = 66;
             // 
             // ParameterInput
             // 
@@ -1754,9 +1785,6 @@ namespace ApsCalcUI
             Controls.Add(MaxInaccUD);
             Controls.Add(MinInaccLabel);
             Controls.Add(DisruptorPanel);
-            Controls.Add(BarrelLengthLimitUD);
-            Controls.Add(BarrelLengthLimitDD);
-            Controls.Add(BarrelLengthLimitCB);
             Controls.Add(DifCB);
             Controls.Add(ModdedMaxGaugeCB);
             Controls.Add(PendepthCB);
@@ -1801,6 +1829,7 @@ namespace ApsCalcUI
             Controls.Add(BarrelCountLabel);
             Controls.Add(MaxGaugeLabel);
             Controls.Add(MinGaugeLabel);
+            Controls.Add(BarrelLengthLimitPanel);
             Name = "ParameterInput";
             Text = "ApsCalc";
             Load += ParameterInput_Load;
@@ -1860,6 +1889,8 @@ namespace ApsCalcUI
             RofRpmPanel.PerformLayout();
             ClipCountPanel.ResumeLayout(false);
             ClipCountPanel.PerformLayout();
+            BarrelLengthLimitPanel.ResumeLayout(false);
+            BarrelLengthLimitPanel.PerformLayout();
             ResumeLayout(false);
             PerformLayout();
         }
@@ -2000,6 +2031,8 @@ namespace ApsCalcUI
         private System.Windows.Forms.Label CasingIncrementLabel;
         private System.Windows.Forms.CheckBox VerboseOutputCB;
         private System.Windows.Forms.CheckBox UseBruteForceCB;
+        private System.Windows.Forms.Panel BarrelLengthLimitPanel;
+        private System.Windows.Forms.CheckBox BarrelLengthHardLimitCB;
     }
 }
 

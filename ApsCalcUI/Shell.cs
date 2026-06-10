@@ -67,6 +67,7 @@ namespace ApsCalcUI
         public float OverallArmorPierceModifier { get; set; }
         public float OverallChemModifier { get; set; }
         public float OverallInaccuracyModifier { get; set; }
+        public float InaccuracyModifierWithoutRecoil { get; set; }
         public float RateOfFireRpm { get; set; } = rateOfFireRpm;
 
 
@@ -93,9 +94,10 @@ namespace ApsCalcUI
         public int BarrelCount { get; set; } = barrelCount;
         public float CooldownTime { get; set; }
 
-        // Effective range
+        // Effective range and inaccuracy
         public float EffectiveRange { get; set; }
-
+        public float InaccuracyAtBarrelLengthLimit { get; set; }
+        public float ImpactArea { get; set; } // Only calculated for soft barrel length limits
 
         // Damage
         public float RawKD { get; set; }
@@ -163,6 +165,46 @@ namespace ApsCalcUI
             { DamageType.Smoke, 0 }
         };
 
+        // Impact area only used for soft barrel length limits
+        public Dictionary<DamageType, float> DpsPerAreaDict = new()
+        {
+            { DamageType.Kinetic, 0 },
+            { DamageType.EMP, 0 },
+            { DamageType.Frag, 0 },
+            { DamageType.HE, 0 },
+            { DamageType.HEAT, 0 },
+            { DamageType.Incendiary, 0 },
+            { DamageType.Disruptor, 0 },
+            { DamageType.MD, 0 },
+            { DamageType.Smoke, 0 }
+        };
+
+        public Dictionary<DamageType, float> DpsPerVolumePerAreaDict = new()
+        {
+            { DamageType.Kinetic, 0 },
+            { DamageType.EMP, 0 },
+            { DamageType.Frag, 0 },
+            { DamageType.HE, 0 },
+            { DamageType.HEAT, 0 },
+            { DamageType.Incendiary, 0 },
+            { DamageType.Disruptor, 0 },
+            { DamageType.MD, 0 },
+            { DamageType.Smoke, 0 }
+        };
+
+        public Dictionary<DamageType, float> DpsPerCostPerAreaDict = new()
+        {
+            { DamageType.Kinetic, 0 },
+            { DamageType.EMP, 0 },
+            { DamageType.Frag, 0 },
+            { DamageType.HE, 0 },
+            { DamageType.HEAT, 0 },
+            { DamageType.Incendiary, 0 },
+            { DamageType.Disruptor, 0 },
+            { DamageType.MD, 0 },
+            { DamageType.Smoke, 0 }
+        };
+
         // Volume
         public float LoaderVolume { get; set; }
         public float RecoilVolume { get; set; }
@@ -186,7 +228,7 @@ namespace ApsCalcUI
         public float FuelStorageCost { get; set; }
         public float CoolerCost { get; set; }
         public float CostPerShell { get; set; } // Material cost for one shell
-        public float AmmoUsed { get; set; } // Material cost for all shells
+        public float AmmoUsed { get; set; } // Material cost for all shells over duration of test interval
         public float AmmoAccessCost { get; set; }
         public float AmmoStorageCost { get; set; }
         public float CostPerLoader { get; set; }
@@ -232,6 +274,7 @@ namespace ApsCalcUI
             EffectiveBodyModuleCount = BodyLength / Gauge;
             EffectiveProjectileModuleCount = ProjectileLength / Gauge;
         }
+
 
         /// <summary>
         /// Calculates velocity modifier
@@ -280,7 +323,6 @@ namespace ApsCalcUI
                 CalculateChemModifier();
             }
         }
-
 
 
         /// <summary>
@@ -423,6 +465,9 @@ namespace ApsCalcUI
                 OverallInaccuracyModifier *= (BarrelCount - 1f) * 0.05f + 1.2f;
             }
 
+            // Used for barrel length and recoil restrictions
+            InaccuracyModifierWithoutRecoil = OverallInaccuracyModifier;
+
             if (!GunUsesRecoilAbsorbers)
             {
                 OverallInaccuracyModifier *= 1f + 0.6f * FeltRecoil / 12500f / GaugeMultiplier;
@@ -430,17 +475,21 @@ namespace ApsCalcUI
         }
 
         /// <summary>
-        /// Calculates max allowed felt recoil for given inaccuracy (only affects guns without recoil absorbers)
+        /// Calculates max allowed felt recoil for given inaccuracy (only affects guns without recoil absorbers).
+        /// Derived from inverse of CalculateRequiredBarrelLengths: d = 0.3 * mod * penalty * (4 * L^0.75 / b)^0.4
         /// </summary>
         /// <param name="maxBarrelLengthInM">Max allowed barrel length for inaccuracy</param>
         /// <param name="desiredInaccuracy">Desired inaccuracy value, in degrees</param>
         public float CalculateMaxFeltRecoilForInaccuracy(float maxBarrelLengthInM, float desiredInaccuracy)
         {
+            CalculateInaccuracyModifier();
             float maxFeltRecoilForInaccuracy =
-                (MathF.Pow(
-                    MathF.Pow(ProjectileLength / 1000f, 3f / 4f) / maxBarrelLengthInM * 4f, 1f / 2.5f)
-                / 0.3f * desiredInaccuracy / OverallInaccuracyModifier - 1f)
-                / 0.6f * 12500f * GaugeMultiplier;
+                (desiredInaccuracy
+                    / (0.3f * InaccuracyModifierWithoutRecoil
+                        * MathF.Pow(
+                            MathF.Pow(ProjectileLength / 1000f, 3f / 4f) / maxBarrelLengthInM * 4f, 1f / 2.5f))
+                        - 1f)
+                        / 0.6f * 12500f * GaugeMultiplier;
 
             return maxFeltRecoilForInaccuracy;
         }
@@ -454,11 +503,8 @@ namespace ApsCalcUI
         /// <param name="maxDrawCasing">Physical rail draw capacity of railgun casings on current shell</param>
         public float CalculateMaxDrawForInaccuracy(float maxBarrelLengthInM, float desiredInaccuracy, float maxDrawCasing)
         {
-            float maxRailRecoilForInaccuracy = 
-                (MathF.Pow(
-                    MathF.Pow(ProjectileLength / 1000f, 3f / 4f) / maxBarrelLengthInM * 4f, 1f / 2.5f)
-                / 0.3f * desiredInaccuracy / OverallInaccuracyModifier - 1f)
-                / 0.6f * 12500f * GaugeMultiplier - GPRecoil;
+            float maxRailRecoilForInaccuracy =
+                CalculateMaxFeltRecoilForInaccuracy(maxBarrelLengthInM, desiredInaccuracy) - GPRecoil;
 
             float maxCasingDrawForInaccuracy = MathF.Min(maxRailRecoilForInaccuracy / RGCasingFeltRecoilMultiplier, maxDrawCasing);
             float maxCasingRecoilForInaccuracy = maxCasingDrawForInaccuracy * RGCasingFeltRecoilMultiplier;
@@ -470,7 +516,7 @@ namespace ApsCalcUI
 
 
         /// <summary>
-        /// Calculate max body length for 0.3° inaccuracy
+        /// Calculate max body length for given inaccuracy
         /// </summary>
         public float CalculateMaxProjectileLengthForInaccuracy(float maxBarrelLengthInM, float desiredInaccuracy)
         {
@@ -479,6 +525,24 @@ namespace ApsCalcUI
                 MathF.Pow(maxBarrelLengthInM / 4f / MathF.Pow(0.3f / desiredInaccuracy * OverallInaccuracyModifier, 2.5f), 4f / 3f);
 
             return maxProjectileLengthInM * 1000f;
+        }
+
+        /// <summary>
+        /// Calculate shell inaccuracy at given barrel length and engagement range
+        /// </summary>
+        /// <param name="barrelLengthInM">Barrel length in metres</param>
+        /// <param name="range">Engagement range for calculating impact area</param>
+        public void CalculateInaccuracyAtBarrelLength(float barrelLengthInM, float range)
+        {
+            CalculateRecoil();
+            CalculateInaccuracyModifier();
+
+            InaccuracyAtBarrelLengthLimit = 0.3f
+                / MathF.Pow(barrelLengthInM / MathF.Pow(ProjectileLength / 1000f, 0.75f) / 4f, 0.4f)
+                * OverallInaccuracyModifier;
+
+            float impactRadius = MathF.Tan(InaccuracyAtBarrelLengthLimit * MathF.PI / 180f) * range;
+            ImpactArea = MathF.Pow(impactRadius * 2, 2); // Shell dispersion is a square, not a circle
         }
 
 
@@ -607,7 +671,7 @@ namespace ApsCalcUI
             ShellReloadTime = MathF.Pow(Gauge / 500f, 1.35f)
                 * (2f + EffectiveProjectileModuleCount + 0.25f * (RGCasingCount + GPCasingCount))
                 * 17.5f;
-            
+
             if (IsBelt)
             {
                 ShellReloadTime *= 0.75f * MathF.Pow(Gauge / 1000f, 0.45f);
@@ -645,7 +709,7 @@ namespace ApsCalcUI
                 {
                     float reloadTimeWhenEmptySeconds = ClusterReloadTime * (1f + RegularClipsPerLoader) / RegularInputsPerLoader;
                     float reducedRofDurationSeconds = MathF.Max(0f, testIntervalSeconds - timeToEmptySeconds);
-                    Uptime = 
+                    Uptime =
                         (timeToEmptySeconds + ClusterReloadTime / reloadTimeWhenEmptySeconds * reducedRofDurationSeconds)
                         / testIntervalSeconds;
                 }
@@ -959,6 +1023,28 @@ namespace ApsCalcUI
                 {
                     DpsPerVolumeDict[dpstype] = 0;
                 }
+            }
+        }
+
+
+        /// <summary>
+        /// For soft barrel length limits; divides DPS values by impact area at given barrel length and engagement range
+        /// </summary>
+        public void CalculateDpsPerAreaByType(float barrelLengthInM, float range)
+        {
+            CalculateInaccuracyAtBarrelLength(barrelLengthInM, range);
+            ArgumentOutOfRangeException.ThrowIfEqual(ImpactArea, 0, "Impact area cannot be 0");
+            foreach (DamageType dpsType in DpsPerAreaDict.Keys)
+            {
+                DpsPerAreaDict[dpsType] = DpsDict[dpsType] / ImpactArea;
+            }
+            foreach (DamageType dpsType in DpsPerCostPerAreaDict.Keys)
+            {
+                DpsPerCostPerAreaDict[dpsType] = DpsPerAreaDict[dpsType] / CostPerLoader;
+            }
+            foreach (DamageType dpsType in DpsPerVolumePerAreaDict.Keys)
+            {
+                DpsPerVolumePerAreaDict[dpsType] = DpsPerAreaDict[dpsType] / VolumePerLoader;
             }
         }
 
@@ -1346,6 +1432,6 @@ namespace ApsCalcUI
             }
 
             ModuleCountTotal += MathF.Ceiling(GPCasingCount) + RGCasingCount;
-        }        
+        }
     }
 }
