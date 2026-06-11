@@ -1058,13 +1058,17 @@ namespace ApsCalcUI
             float minDraw,
             Dictionary<DamageType, float> referenceDict)
         {
+            // Draw filtering must be done before reaching this point
+            ArgumentOutOfRangeException.ThrowIfLessThan(maxDraw, minDraw, "Min draw cannot be greater than max draw");
+
             if (DamageType != DamageType.Kinetic)
             {
                 return minDraw;
             }
             else
             {
-                // For kinetic, optimal draw will always be one of six fixed points
+                // For kinetic, the optimal draw is always among a small set of closed-form
+                // candidate points (six without a soft barrel length limit; up to ~15 with one)
                 // First three points determined by shell
                 HashSet<float> drawCandidates = [
                     minDraw,
@@ -1154,6 +1158,125 @@ namespace ApsCalcUI
                     {
                         AddCandidate(projectileIntercept);
                     }
+                }
+
+                // Additional points: under a soft barrel length limit, guns without recoil
+                // absorbers divide the score by impact area ∝ tan²(inaccuracy), and inaccuracy
+                // grows with felt recoil as (E + F * draw), piecewise affine with the same knee
+                // (MaxDrawCasing) as the volume/cost denominator. On each piece, in the
+                // small-angle approximation, score ∝ (gpRecoil + d)^p / ((A + B*d) * (E + F*d)²)
+                // with p = 1 below the AP = AC velocity and 1/2 above (the p = 1 branch is not
+                // monotone here, unlike the area-free case, so it contributes candidates too).
+                // Stationary points solve a quadratic; one Newton step on the exact-tangent
+                // stationarity condition removes the small-angle error. Raw and polished roots
+                // are both added; Evaluate uses the exact score, so spurious candidates are
+                // harmless and exactness does not depend on root placement.
+                if (LimitBarrelLength && !BarrelLengthHardLimit && !GunUsesRecoilAbsorbers)
+                {
+                    // InaccuracyModifierWithoutRecoil is only valid after calculation
+                    shellUnderTesting.CalculateInaccuracyModifier();
+                    float feltRecoilFactor = shellUnderTesting.FeltRecoilInaccuracyCoefficient / shellUnderTesting.DrawPerProjectileModule;
+                    float casingFeltMultiplier = shellUnderTesting.RGCasingFeltRecoilMultiplier;
+                    float maxDrawCasing = shellUnderTesting.MaxDrawCasing;
+                    // Inaccuracy in radians = uCoefficient * (E + F * draw)
+                    float uCoefficient = MathF.PI / 180f * 0.3f
+                        * shellUnderTesting.InaccuracyModifierWithoutRecoil
+                        * MathF.Pow(
+                            MathF.Pow(shellUnderTesting.ProjectileLength / 1000f, 3f / 4f)
+                            / MaxBarrelLengthInM * 4f, 1f / 2.5f);
+
+                    void AddAreaStationaryPoints(float pieceLo, float pieceHi, float penaltyIntercept, float penaltySlope)
+                    {
+                        if (pieceHi <= pieceLo)
+                        {
+                            return;
+                        }
+                        float denomLo = Evaluate(pieceLo).denominator;
+                        float denomHi = Evaluate(pieceHi).denominator;
+                        float slopeB = (denomHi - denomLo) / (pieceHi - pieceLo);
+                        float interceptA = denomLo - slopeB * pieceLo;
+
+                        void SolveForExponent(float p)
+                        {
+                            float a2 = slopeB * penaltySlope * (p - 3f);
+                            float a1 = p * (interceptA * penaltySlope + slopeB * penaltyIntercept)
+                                - slopeB * (gpRecoil * penaltySlope + penaltyIntercept)
+                                - 2f * penaltySlope * (gpRecoil * slopeB + interceptA);
+                            float a0 = p * interceptA * penaltyIntercept
+                                - slopeB * gpRecoil * penaltyIntercept
+                                - 2f * penaltySlope * gpRecoil * interceptA;
+
+                            Span<float> roots = stackalloc float[2];
+                            int rootCount = 0;
+                            if (a2 == 0f)
+                            {
+                                if (a1 != 0f)
+                                {
+                                    roots[rootCount++] = -a0 / a1;
+                                }
+                            }
+                            else
+                            {
+                                float discriminant = a1 * a1 - 4f * a2 * a0;
+                                if (discriminant >= 0f)
+                                {
+                                    float sqrtDiscriminant = MathF.Sqrt(discriminant);
+                                    roots[rootCount++] = (-a1 + sqrtDiscriminant) / (2f * a2);
+                                    roots[rootCount++] = (-a1 - sqrtDiscriminant) / (2f * a2);
+                                }
+                            }
+
+                            for (int rootIndex = 0; rootIndex < rootCount; rootIndex++)
+                            {
+                                float root = roots[rootIndex];
+                                if (!float.IsFinite(root))
+                                {
+                                    continue;
+                                }
+                                AddCandidate(root);
+
+                                // Newton step on h(d) = p/(R0+d) - B/(A+Bd) - 4u'/sin(2u),
+                                // the exact-tangent stationarity condition
+                                float u = uCoefficient * (penaltyIntercept + penaltySlope * root);
+                                float uSlope = uCoefficient * penaltySlope;
+                                if (root > -gpRecoil && interceptA + slopeB * root > 0f
+                                    && u > 0f && 2f * u < MathF.PI)
+                                {
+                                    float sin2u = MathF.Sin(2f * u);
+                                    float h = p / (gpRecoil + root)
+                                        - slopeB / (interceptA + slopeB * root)
+                                        - 4f * uSlope / sin2u;
+                                    float hPrime = -p / ((gpRecoil + root) * (gpRecoil + root))
+                                        + slopeB * slopeB / ((interceptA + slopeB * root) * (interceptA + slopeB * root))
+                                        + 8f * uSlope * uSlope * MathF.Cos(2f * u) / (sin2u * sin2u);
+                                    if (hPrime != 0f)
+                                    {
+                                        float polished = root - h / hPrime;
+                                        if (float.IsFinite(polished))
+                                        {
+                                            AddCandidate(polished);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        SolveForExponent(0.5f);
+                        SolveForExponent(1f);
+                    }
+
+                    // Piece 1: draw held entirely in railgun casings
+                    AddAreaStationaryPoints(
+                        MathF.Max(minDraw, 0f),
+                        MathF.Min(maxDrawCasing, maxDraw),
+                        1f + feltRecoilFactor * gpRecoil,
+                        feltRecoilFactor * casingFeltMultiplier);
+                    // Piece 2: draw overflows into projectile (felt 1:1)
+                    AddAreaStationaryPoints(
+                        MathF.Max(maxDrawCasing, minDraw),
+                        maxDraw,
+                        1f + feltRecoilFactor * (gpRecoil + (casingFeltMultiplier - 1f) * maxDrawCasing),
+                        feltRecoilFactor);
                 }
 
                 // Find best candidate

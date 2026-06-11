@@ -76,6 +76,7 @@ namespace ApsCalcUI
         public float DrawPerProjectileModule { get; } = 12500f * gaugeMultiplier; // Draw per projectile module, hard-coded
         public float RGCasingDrawMultiplier { get; } = 1.25f; // (Draw per RG casing / draw per projectile module), hard-coded
         public float RGCasingFeltRecoilMultiplier { get; } = 0.6f;
+        public float FeltRecoilInaccuracyCoefficient { get; } = 0.6f; // Portion of felt recoil which goes towards nonabsorbed inaccuracy
         public float GPRecoil { get; set; }
         public float MaxDrawCasing { get; set; }
         public float MaxDrawProjectile { get; set; }
@@ -426,7 +427,7 @@ namespace ApsCalcUI
         /// <summary>
         /// Calculates inaccuracy modifier
         /// </summary>
-        void CalculateInaccuracyModifier()
+        public void CalculateInaccuracyModifier()
         {
             // Calculate weighted inaccuracy modifier of body
             float weightedInaccuracyMod = 0f;
@@ -470,7 +471,7 @@ namespace ApsCalcUI
 
             if (!GunUsesRecoilAbsorbers)
             {
-                OverallInaccuracyModifier *= 1f + 0.6f * FeltRecoil / 12500f / GaugeMultiplier;
+                OverallInaccuracyModifier *= 1f + FeltRecoilInaccuracyCoefficient * FeltRecoil / 12500f / GaugeMultiplier;
             }
         }
 
@@ -489,7 +490,7 @@ namespace ApsCalcUI
                         * MathF.Pow(
                             MathF.Pow(ProjectileLength / 1000f, 3f / 4f) / maxBarrelLengthInM * 4f, 1f / 2.5f))
                         - 1f)
-                        / 0.6f * 12500f * GaugeMultiplier;
+                        / FeltRecoilInaccuracyCoefficient * 12500f * GaugeMultiplier;
 
             return maxFeltRecoilForInaccuracy;
         }
